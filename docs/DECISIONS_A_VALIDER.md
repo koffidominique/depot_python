@@ -43,3 +43,22 @@ lorsqu'elles sont autorisées et que le montant résultant est entier.
 - Les flux non espèces de caisse sont affichés séparément sans supposer leurs
   soldes d'ouverture ; rapprochement des comptes, transferts, moyens configurables
   et clôture de chaque compte restent à concevoir.
+
+- Crédit historique : définir une procédure de rapprochement des anciennes ventes,
+  créances et soldes avant de permettre l'accès au nouveau circuit pour ces clients.
+  Aucun solde ancien n'est supposé, et les rapports anciens ne sont pas fusionnés.
+- Consignes et retours : définir pour chaque conditionnement la correspondance
+  explicite avec les emballages, quantités, valeurs, propriété et règles de retour ;
+  aucune règle ne doit être déduite du nom du produit ou du brasseur. Les règles
+  de remboursement extérieur et de vérification des comptes non espèces restent
+  à définir avec l'exploitant ; le logiciel ne peut confirmer seul les soldes réels.
+
+### Consignes v18
+
+Définir les procédures d'annulation d'une vente consignée, de retour de marchandise consignée et de contrepassation d'un retour de vides avant leur ouverture. Définir aussi le rapprochement éventuel des historiques et l'approvisionnement des vides ; aucune correspondance n'est supposée.
+
+Décision utilisateur : les retours de marchandises et d'emballages sont séparés selon les éléments physiquement récupérés ; les anciens historiques doivent être rapprochés manuellement après confirmation explicite, sans inventer de correspondances. La fonctionnalité de rapprochement reste à développer.
+
+Les moyens personnalisés sont traités comme non espèces. Un renommage crée une nouvelle version pour conserver le libellé d'origine ; les flux des versions sont distincts, sans regroupement automatique. Le code espèces conserve sa sémantique et ne peut être désactivé ou renommé.
+
+Rapprochement historique : l'utilisateur souhaite une procédure de **reprise des soldes après contrôle**, justification et confirmation explicites, plutôt qu'un simple lien documentaire. La conception et l'implémentation restent à faire ; aucun solde n'est repris automatiquement et les anciens historiques restent séparés. Il faut préserver les écritures d'origine et éviter tout double comptage avant d'autoriser des opérations sur les soldes repris.

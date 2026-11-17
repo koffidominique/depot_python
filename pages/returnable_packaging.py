@@ -18,7 +18,7 @@ def create_returnable_packaging_page(db, refresh_page):
 
     ui.label('Catalogue des emballages consignés').classes('text-2xl font-bold')
     ui.label('Journal manuel des vides présents au dépôt, séparé du stock de boissons. '
-             'Les achats, ventes et retours ne mettent pas ce journal à jour automatiquement ; aucune dette de consigne ni compatibilité n’est calculée.').classes('text-orange-800')
+             'Les retours de vides des ventes consignées y sont ajoutés ; les achats et les mouvements manuels restent séparés. Les anciennes consignes ne sont pas rapprochées automatiquement.').classes('text-orange-800')
     ui.label('Ne créez que les emballages et montants confirmés avec vos fournisseurs.')
 
     def create_dialog():

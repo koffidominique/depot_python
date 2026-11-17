@@ -1,6 +1,6 @@
 """Infrastructure de migrations DEPOTPRO, à exécuter application arrêtée.
 
-Les versions 1–10 couvrent l'historique, la sécurité locale, les conditionnements,
+Les versions 1–20 couvrent l'historique, la sécurité locale, les conditionnements,
 le stockage exact du coût moyen et les structures de réception et inventaire. Les montants existants ne sont pas convertis.
 """
 import argparse
@@ -16,7 +16,8 @@ from config import DB_PATH
 from database import Base
 import models  # enregistre les tables avant la vérification du schéma
 
-VERSION = 10
+VERSION = 20
+from services.barcode_constraints import TRIGGERS, verify_barcode_constraints
 
 
 def _verify(connection):
@@ -41,7 +42,7 @@ def migrate(path: Path) -> Path | None:
                 raise ValueError('Ce fichier ne contient pas les tables DEPOTPRO attendues.')
             # Aucune hypothèse sur un schéma partiel ou provenant d'une autre version.
             for table in Base.metadata.sorted_tables:
-                if table.name in ('owner_security', 'product_packagings', 'inventories', 'inventory_lines', 'purchase_receipts', 'purchase_receipt_lines', 'returnable_packaging_types', 'returnable_stock_balances', 'returnable_stock_movements', 'managed_cash_sessions', 'managed_cash_entries', 'managed_sales', 'managed_sale_lines', 'managed_cash_transactions'):
+                if table.name in ('owner_security', 'product_packagings', 'inventories', 'inventory_lines', 'purchase_receipts', 'purchase_receipt_lines', 'returnable_packaging_types', 'returnable_stock_balances', 'returnable_stock_movements', 'managed_cash_sessions', 'managed_cash_entries', 'managed_sales', 'managed_sale_lines', 'managed_cash_transactions', 'managed_sale_payments', 'managed_sale_cancellations', 'managed_sale_refunds', 'managed_credit_profiles', 'managed_credit_sales', 'managed_credit_payments', 'managed_returns', 'managed_return_lines', 'managed_return_refunds', 'managed_return_cancellations', 'managed_return_recaptures', 'deposit_packaging_profiles', 'deposit_packaging_components', 'managed_deposit_issues', 'managed_deposit_returns', 'managed_deposit_refunds', 'payment_methods', 'managed_deposit_return_cancellations', 'managed_deposit_return_recaptures'):
                     continue
                 if table.name not in tables:
                     raise ValueError(f'Schéma DEPOTPRO incompatible : table {table.name} absente.')
@@ -61,7 +62,7 @@ def migrate(path: Path) -> Path | None:
             versions = []
             if 'depotpro_schema_migrations' in tables:
                 versions = [row[0] for row in db.execute('SELECT version FROM depotpro_schema_migrations ORDER BY version')]
-                if versions not in ([1], [1, 2], [1, 2, 3], [1, 2, 3, 4], [1, 2, 3, 4, 5], [1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5, 6, 7], [1, 2, 3, 4, 5, 6, 7, 8], [1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]):
+                if versions not in [list(range(1, v + 1)) for v in range(1, VERSION + 1)]:
                     raise ValueError('Historique de migration non reconnu : intervention nécessaire.')
                 required = {}
                 if 2 in versions:
@@ -89,13 +90,39 @@ def migrate(path: Path) -> Path | None:
                 if 10 in versions:
                     for name in ('managed_sales', 'managed_sale_lines', 'managed_cash_transactions'):
                         required[name] = {column.name for column in Base.metadata.tables[name].columns}
+                if 12 in versions:
+                    required['managed_sale_payments'] = {column.name for column in Base.metadata.tables['managed_sale_payments'].columns}
+                if 13 in versions:
+                    for name in ('managed_sale_cancellations', 'managed_sale_refunds'):
+                        required[name] = {column.name for column in Base.metadata.tables[name].columns}
+                if 14 in versions:
+                    for name in ('managed_credit_profiles', 'managed_credit_sales', 'managed_credit_payments'):
+                        required[name] = {column.name for column in Base.metadata.tables[name].columns}
+                if 15 in versions:
+                    for name in ('managed_returns', 'managed_return_lines', 'managed_return_refunds'):
+                        required[name] = {column.name for column in Base.metadata.tables[name].columns}
+                if 16 in versions:
+                    for name in ('managed_return_cancellations', 'managed_return_recaptures'):
+                        required[name] = {column.name for column in Base.metadata.tables[name].columns}
+                if 17 in versions:
+                    for name in ('deposit_packaging_profiles', 'deposit_packaging_components'):
+                        required[name] = {column.name for column in Base.metadata.tables[name].columns}
+                if 18 in versions:
+                    for name in ('managed_deposit_issues', 'managed_deposit_returns', 'managed_deposit_refunds'):
+                        required[name] = {column.name for column in Base.metadata.tables[name].columns}
+                if 19 in versions:
+                    required['payment_methods'] = {column.name for column in Base.metadata.tables['payment_methods'].columns}
+                if 20 in versions:
+                    for name in ('managed_deposit_return_cancellations', 'managed_deposit_return_recaptures'):
+                        required[name] = {column.name for column in Base.metadata.tables[name].columns}
                 for table_name, required_columns in required.items():
                     if table_name not in tables:
                         raise ValueError(f'Schéma versionné incomplet : table {table_name} absente.')
                     columns = {row[1] for row in db.execute(f'PRAGMA table_info("{table_name}")')}
                     if not required_columns.issubset(columns):
                         raise ValueError(f'Schéma versionné incomplet : colonnes absentes dans {table_name}.')
-                if versions == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]:
+                if versions == list(range(1, VERSION + 1)):
+                    verify_barcode_constraints(db)
                     db.rollback()
                     return None
             # Une seconde connexion lit l'instantané verrouillé, WAL compris.
@@ -260,6 +287,149 @@ def migrate(path: Path) -> Path | None:
                             raise ValueError(f'Table {name} non reconnue : migration annulée.')
                 db.execute('INSERT INTO depotpro_schema_migrations VALUES (?, ?, ?)',
                            (10, 'Ventes au comptant et mouvements de caisse complémentaires', datetime.now().isoformat(timespec='seconds')))
+            if 11 not in versions:
+                if db.execute('SELECT 1 FROM products p JOIN product_packagings c ON p.barcode = c.barcode LIMIT 1').fetchone():
+                    raise ValueError('Codes-barres identiques entre produits et conditionnements : migration annulée, diagnostic requis.')
+                for name, sql in TRIGGERS.items():
+                    if db.execute("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name=?", (name,)).fetchone():
+                        raise ValueError(f'Protection de code-barres préexistante non reconnue : {name}.')
+                    db.execute(sql)
+                db.execute('INSERT INTO depotpro_schema_migrations VALUES (?, ?, ?)',
+                           (11, 'Unicité inter-tables des codes-barres', datetime.now().isoformat(timespec='seconds')))
+            if 12 not in versions:
+                from sqlalchemy.schema import CreateTable, CreateIndex
+                from sqlalchemy.dialects.sqlite import dialect
+                table = Base.metadata.tables['managed_sale_payments']
+                if table.name not in tables:
+                    db.execute(str(CreateTable(table).compile(dialect=dialect())))
+                    for index in table.indexes:
+                        db.execute(str(CreateIndex(index).compile(dialect=dialect())))
+                else:
+                    columns = {row[1] for row in db.execute('PRAGMA table_info(managed_sale_payments)')}
+                    if columns != {column.name for column in table.columns} or db.execute('SELECT 1 FROM managed_sale_payments LIMIT 1').fetchone():
+                        raise ValueError('Paiements de ventes non reconnus : migration annulée.')
+                db.execute('INSERT INTO depotpro_schema_migrations VALUES (?, ?, ?)',
+                           (12, 'Paiements multiples des nouvelles ventes', datetime.now().isoformat(timespec='seconds')))
+            if 13 not in versions:
+                from sqlalchemy.schema import CreateTable, CreateIndex
+                from sqlalchemy.dialects.sqlite import dialect
+                for name in ('managed_sale_cancellations', 'managed_sale_refunds'):
+                    table = Base.metadata.tables[name]
+                    if name not in tables:
+                        db.execute(str(CreateTable(table).compile(dialect=dialect())))
+                        for index in table.indexes:
+                            db.execute(str(CreateIndex(index).compile(dialect=dialect())))
+                    else:
+                        columns = {row[1] for row in db.execute(f'PRAGMA table_info("{name}")')}
+                        if columns != {column.name for column in table.columns} or db.execute(f'SELECT 1 FROM "{name}" LIMIT 1').fetchone():
+                            raise ValueError(f'Table {name} non reconnue : migration annulée.')
+                db.execute('INSERT INTO depotpro_schema_migrations VALUES (?, ?, ?)',
+                           (13, 'Annulations totales de ventes et remboursements liés', datetime.now().isoformat(timespec='seconds')))
+            if 14 not in versions:
+                from sqlalchemy.schema import CreateTable, CreateIndex
+                from sqlalchemy.dialects.sqlite import dialect
+                for name in ('managed_credit_profiles', 'managed_credit_sales', 'managed_credit_payments'):
+                    table = Base.metadata.tables[name]
+                    if name not in tables:
+                        db.execute(str(CreateTable(table).compile(dialect=dialect())))
+                        for index in table.indexes:
+                            db.execute(str(CreateIndex(index).compile(dialect=dialect())))
+                    else:
+                        columns = {row[1] for row in db.execute(f'PRAGMA table_info("{name}")')}
+                        if columns != {column.name for column in table.columns} or db.execute(f'SELECT 1 FROM "{name}" LIMIT 1').fetchone():
+                            raise ValueError(f'Table {name} non reconnue : migration annulée.')
+                db.execute('INSERT INTO depotpro_schema_migrations VALUES (?, ?, ?)',
+                           (14, 'Créances et règlements du nouveau circuit', datetime.now().isoformat(timespec='seconds')))
+            if 15 not in versions:
+                from sqlalchemy.schema import CreateTable, CreateIndex
+                from sqlalchemy.dialects.sqlite import dialect
+                for name in ('managed_returns', 'managed_return_lines', 'managed_return_refunds'):
+                    table = Base.metadata.tables[name]
+                    if name not in tables:
+                        db.execute(str(CreateTable(table).compile(dialect=dialect())))
+                        for index in table.indexes:
+                            db.execute(str(CreateIndex(index).compile(dialect=dialect())))
+                    else:
+                        columns = {row[1] for row in db.execute(f'PRAGMA table_info("{name}")')}
+                        if columns != {column.name for column in table.columns} or db.execute(f'SELECT 1 FROM "{name}" LIMIT 1').fetchone():
+                            raise ValueError(f'Table {name} non reconnue : migration annulée.')
+                db.execute('INSERT INTO depotpro_schema_migrations VALUES (?, ?, ?)',
+                           (15, 'Retours partiels et remboursements liés', datetime.now().isoformat(timespec='seconds')))
+            if 16 not in versions:
+                from sqlalchemy.schema import CreateTable, CreateIndex
+                from sqlalchemy.dialects.sqlite import dialect
+                for name in ('managed_return_cancellations', 'managed_return_recaptures'):
+                    table = Base.metadata.tables[name]
+                    if name not in tables:
+                        db.execute(str(CreateTable(table).compile(dialect=dialect())))
+                        for index in table.indexes:
+                            db.execute(str(CreateIndex(index).compile(dialect=dialect())))
+                    else:
+                        columns = {row[1] for row in db.execute(f'PRAGMA table_info("{name}")')}
+                        if columns != {column.name for column in table.columns} or db.execute(f'SELECT 1 FROM "{name}" LIMIT 1').fetchone():
+                            raise ValueError(f'Table {name} non reconnue : migration annulée.')
+                db.execute('INSERT INTO depotpro_schema_migrations VALUES (?, ?, ?)',
+                           (16, 'Annulation de retours et reprises de remboursements', datetime.now().isoformat(timespec='seconds')))
+            if 17 not in versions:
+                from sqlalchemy.schema import CreateTable, CreateIndex
+                from sqlalchemy.dialects.sqlite import dialect
+                for name in ('deposit_packaging_profiles', 'deposit_packaging_components'):
+                    table = Base.metadata.tables[name]
+                    if name not in tables:
+                        db.execute(str(CreateTable(table).compile(dialect=dialect())))
+                        for index in table.indexes:
+                            db.execute(str(CreateIndex(index).compile(dialect=dialect())))
+                    else:
+                        columns = {row[1] for row in db.execute(f'PRAGMA table_info("{name}")')}
+                        if columns != {column.name for column in table.columns} or db.execute(f'SELECT 1 FROM "{name}" LIMIT 1').fetchone():
+                            raise ValueError(f'Table {name} non reconnue : migration annulée.')
+                db.execute('INSERT INTO depotpro_schema_migrations VALUES (?, ?, ?)',
+                           (17, 'Configuration explicite des emballages par conditionnement', datetime.now().isoformat(timespec='seconds')))
+            if 18 not in versions:
+                from sqlalchemy.schema import CreateTable, CreateIndex
+                from sqlalchemy.dialects.sqlite import dialect
+                for name in ('managed_deposit_issues', 'managed_deposit_returns', 'managed_deposit_refunds'):
+                    table = Base.metadata.tables[name]
+                    if name not in tables:
+                        db.execute(str(CreateTable(table).compile(dialect=dialect())))
+                        for index in table.indexes:
+                            db.execute(str(CreateIndex(index).compile(dialect=dialect())))
+                    else:
+                        columns = {row[1] for row in db.execute(f'PRAGMA table_info("{name}")')}
+                        if columns != {column.name for column in table.columns} or db.execute(f'SELECT 1 FROM "{name}" LIMIT 1').fetchone():
+                            raise ValueError(f'Table {name} non reconnue : migration annulée.')
+                db.execute('INSERT INTO depotpro_schema_migrations VALUES (?, ?, ?)',
+                           (18, 'Ventes consignées et retours de vides', datetime.now().isoformat(timespec='seconds')))
+            if 19 not in versions:
+                from sqlalchemy.schema import CreateTable
+                from sqlalchemy.dialects.sqlite import dialect
+                from services.cash_methods import METHODS
+                table = Base.metadata.tables['payment_methods']
+                if 'payment_methods' not in tables:
+                    db.execute(str(CreateTable(table).compile(dialect=dialect())))
+                else:
+                    columns = {row[1] for row in db.execute('PRAGMA table_info(payment_methods)')}
+                    if columns != {column.name for column in table.columns} or db.execute('SELECT 1 FROM payment_methods LIMIT 1').fetchone():
+                        raise ValueError('Table payment_methods non reconnue : migration annulée.')
+                db.executemany('INSERT INTO payment_methods (code, label, active) VALUES (?, ?, 1)', list(METHODS.items()))
+                db.execute('INSERT INTO depotpro_schema_migrations VALUES (?, ?, ?)',
+                           (19, 'Catalogue des moyens de paiement', datetime.now().isoformat(timespec='seconds')))
+            if 20 not in versions:
+                from sqlalchemy.schema import CreateTable, CreateIndex
+                from sqlalchemy.dialects.sqlite import dialect
+                for name in ('managed_deposit_return_cancellations', 'managed_deposit_return_recaptures'):
+                    table = Base.metadata.tables[name]
+                    if name not in tables:
+                        db.execute(str(CreateTable(table).compile(dialect=dialect())))
+                        for index in table.indexes:
+                            db.execute(str(CreateIndex(index).compile(dialect=dialect())))
+                    else:
+                        columns = {row[1] for row in db.execute(f'PRAGMA table_info("{name}")')}
+                        if columns != {column.name for column in table.columns} or db.execute(f'SELECT 1 FROM "{name}" LIMIT 1').fetchone():
+                            raise ValueError(f'Table {name} non reconnue : migration annulée.')
+                db.execute('INSERT INTO depotpro_schema_migrations VALUES (?, ?, ?)',
+                           (20, 'Contrepassation des retours de vides', datetime.now().isoformat(timespec='seconds')))
+            verify_barcode_constraints(db)
             _verify(db)
             db.commit()
             return backup
@@ -279,7 +449,7 @@ def main():
         backup = migrate(DB_PATH)
     except (sqlite3.Error, ValueError, OSError) as exc:
         parser.exit(1, f'Migration impossible : {exc}\n')
-    print(f'Migrations 1–10 appliquées. Sauvegarde préalable : {backup}' if backup else 'Migrations 1–10 déjà appliquées ; aucune modification.')
+    print(f'Migrations 1–{VERSION} appliquées. Sauvegarde préalable : {backup}' if backup else f'Migrations 1–{VERSION} déjà appliquées ; aucune modification.')
 
 
 if __name__ == '__main__':

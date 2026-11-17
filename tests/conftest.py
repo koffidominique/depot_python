@@ -15,6 +15,10 @@ def db_session():
 
     Base.metadata.create_all(engine)
     session = sessionmaker(bind=engine, autoflush=False)()
+    from models.payment_method import PaymentMethod
+    from services.cash_methods import METHODS
+    session.add_all(PaymentMethod(code=k, label=v, active=True) for k, v in METHODS.items())
+    session.commit()
     try:
         yield session
     finally:

@@ -50,3 +50,32 @@ def test_csv_refuse_doublons_dans_fichier(db_session):
     ProductService(db_session).create_category('Boissons')
     service = ProductCSVService(db_session)
     assert service.preview(csv_content([row(), row(name='Autre')]))[1]['errors']
+
+
+@pytest.mark.parametrize('text', [
+    '"en-tête jamais terminé',
+    ','.join(FIELDS) + '\nP01,"nom jamais terminé',
+])
+def test_csv_malforme_refuse_sans_ecriture(db_session, text):
+    service = ProductCSVService(db_session)
+    with pytest.raises(ValueError, match='illisible'):
+        service.import_csv(text)
+    assert db_session.query(Product).count() == 0
+    assert db_session.query(StockMovement).count() == 0
+
+
+def test_csv_refuse_code_barres_conditionnement_et_preserve_donnees(db_session):
+    from services.packaging_service import PackagingService
+    products = ProductService(db_session)
+    category = products.create_category('Boissons')
+    existing = products.create_product({'name': 'Existant', 'category_id': category.id,
+                                        'unit': 'bouteille'})
+    PackagingService(db_session).save(existing.id, {'name': 'pack', 'coefficient': 6,
+                                                   'barcode': 'CODE-TEST'})
+    service = ProductCSVService(db_session)
+    text = csv_content([row(reference='P001', barcode='CODE-TEST')])
+    assert service.preview(text)[0]['errors']
+    with pytest.raises(ValueError, match='Import annulé'):
+        service.import_csv(text)
+    assert db_session.query(Product).count() == 1
+    assert db_session.query(StockMovement).count() == 0

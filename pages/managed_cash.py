@@ -2,8 +2,11 @@
 from uuid import uuid4
 from nicegui import ui
 from models.managed_cash import ManagedCashSession
-from models.managed_operations import ManagedCashTransaction
-from services.cash_methods import METHODS
+from models.managed_credit import ManagedCreditPayment
+from models.managed_deposit import ManagedDepositRefund, ManagedDepositReturnRecapture
+from models.managed_returns import ManagedReturnRefund, ManagedReturnRecapture
+from models.managed_operations import ManagedCashTransaction, ManagedSalePayment, ManagedSaleRefund
+from services.cash_methods import labels
 from services.managed_cash_service import ManagedCashService
 
 KINDS = {'sale': 'Vente au comptant', 'expense': 'Dépense', 'income': 'Autre recette',
@@ -13,6 +16,8 @@ CATEGORIES = ['Transport', 'Carburant', 'Chargement', 'Déchargement', 'Manutent
 
 
 def create_managed_cash_page(db, refresh_page):
+    METHODS = labels(db, active_only=True)
+    ALL_METHODS = labels(db)
     service = ManagedCashService(db)
     def run(action):
         try:
@@ -23,7 +28,7 @@ def create_managed_cash_page(db, refresh_page):
 
     ui.label('Caisse et trésorerie').classes('text-2xl font-bold')
     ui.label('Les ventes au comptant et mouvements saisis ici, ainsi que les règlements fournisseurs liés, alimentent la caisse. '
-             'Ventes historiques, crédits, retours et paiements antérieurs hors caisse ne sont pas rapprochés automatiquement.').classes('text-orange-800')
+             'Ventes et créances historiques, retours et paiements antérieurs hors caisse ne sont pas rapprochés automatiquement.').classes('text-orange-800')
     ui.label('Les soldes des comptes non espèces ne sont pas calculés : seuls leurs flux de session sont affichés.')
     session = service.get_open()
     if not session:
@@ -46,7 +51,7 @@ def create_managed_cash_page(db, refresh_page):
         ui.label(f'{session.reference} — ouverte le {session.opened_at}')
         ui.label(f'Fonds initial : {session.opening_cash} FCFA — espèces théoriques : {service.cash_available(session)} FCFA')
         for method, totals in service.flows(session.id).items():
-            ui.label(f'{METHODS.get(method, method)} — entrées : {totals["in"]} FCFA — sorties : {totals["out"]} FCFA')
+            ui.label(f'{ALL_METHODS.get(method, method)} — entrées : {totals["in"]} FCFA — sorties : {totals["out"]} FCFA')
         def movement_dialog():
             with ui.dialog() as dialog, ui.card().classes('w-full max-w-xl'):
                 ui.label('Mouvement de trésorerie').classes('text-lg font-bold')
@@ -71,9 +76,23 @@ def create_managed_cash_page(db, refresh_page):
         ui.button('Nouvelle dépense ou autre mouvement', on_click=movement_dialog)
         with ui.expansion('Mouvements de la session', icon='receipt').classes('w-full'):
             for entry in sorted(session.entries, key=lambda e: e.id, reverse=True):
-                ui.label(f'{entry.date} — Règlement fournisseur — {METHODS.get(entry.method, entry.method)} : {entry.amount} FCFA — paiement #{entry.supplier_payment_id}')
+                ui.label(f'{entry.date} — Règlement fournisseur — {ALL_METHODS.get(entry.method, entry.method)} : {entry.amount} FCFA — paiement #{entry.supplier_payment_id}')
+            mixed_ids = {row[0] for row in db.query(ManagedSalePayment.transaction_id).all()}
+            refund_ids = {row[0] for row in db.query(ManagedSaleRefund.refund_transaction_id).all()}
+            credit_ids = {row[0] for row in db.query(ManagedCreditPayment.transaction_id).all()}
+            deposit_refund_ids = {row[0] for row in db.query(ManagedDepositRefund.refund_transaction_id).all()}
+            deposit_recapture_ids = {row[0] for row in db.query(ManagedDepositReturnRecapture.transaction_id).all()}
+            return_ids = {row[0] for row in db.query(ManagedReturnRefund.refund_transaction_id).all()}
+            recapture_ids = {row[0] for row in db.query(ManagedReturnRecapture.transaction_id).all()}
             for entry in db.query(ManagedCashTransaction).filter_by(session_id=session.id).order_by(ManagedCashTransaction.id.desc()).all():
-                ui.label(f'{entry.date} — {KINDS.get(entry.kind, entry.kind)} — {METHODS.get(entry.method, entry.method)} : {entry.amount} FCFA — '
+                label = ('Reprise remboursement de consigne' if entry.id in deposit_recapture_ids else
+                         'Remboursement de consigne' if entry.id in deposit_refund_ids else
+                         'Reprise remboursement de retour' if entry.id in recapture_ids else
+                         'Remboursement de retour' if entry.id in return_ids else
+                         'Remboursement de vente' if entry.id in refund_ids else
+                         'Règlement de créance' if entry.id in credit_ids else
+                         'Paiement de vente' if entry.id in mixed_ids else KINDS.get(entry.kind, entry.kind))
+                ui.label(f'{entry.date} — {label} — {ALL_METHODS.get(entry.method, entry.method)} : {entry.amount} FCFA — '
                          f'{entry.description} — {entry.category or ""} {entry.beneficiary or ""} {entry.reference or ""}')
         def closing():
             with ui.dialog() as dialog, ui.card():
@@ -96,4 +115,4 @@ def create_managed_cash_page(db, refresh_page):
         ui.label(f'{item.reference} — {item.closed_at} — théorique {item.theoretical_cash} FCFA — '
                  f'compté {item.physical_cash} FCFA — écart {item.difference} FCFA — {item.closing_notes or "sans commentaire"}')
         for method, totals in service.flows(item.id).items():
-            ui.label(f'{METHODS.get(method, method)} — entrées : {totals["in"]} FCFA — sorties : {totals["out"]} FCFA')
+            ui.label(f'{ALL_METHODS.get(method, method)} — entrées : {totals["in"]} FCFA — sorties : {totals["out"]} FCFA')

@@ -135,3 +135,96 @@ pas intégrées aux anciens rapports et ne constituent pas une migration de l'an
 module. Sauvegarder SQLite et les images séparément, arrêter tous les accès et tester
 la migration sur une copie. La base de l'aperçu a été migrée après arrêt et sauvegarde
 vérifiée.
+
+## Version 11 — unicité inter-tables des codes-barres
+
+Quatre déclencheurs SQLite empêchent les insertions et modifications de codes-barres
+identiques entre produits et conditionnements, actifs ou archivés. Les index
+uniques de chaque table et les déclencheurs sont vérifiés au démarrage. La migration
+n'efface, ne renomme et ne fusionne aucun code-barres : si une collision existe,
+elle est annulée après création de la sauvegarde et exige un diagnostic humain.
+Les comparaisons portent sur les valeurs exactement stockées ; les services
+normalisent les espaces avant enregistrement. Modifier le schéma ou supprimer les
+protections directement contourne ces garanties et le démarrage le refuse.
+
+Pour une base existante, arrêter tous les accès, sauvegarder également les images,
+auditer et tester d'abord la migration et la restauration sur une copie ; exécuter
+ensuite `python scripts/migrate_database.py --application-arretee` seulement après
+validation. Essais réalisés sur bases temporaires uniquement : aucune base
+commerciale n'a été migrée. Les sauvegardes créées par la migration restent au
+même emplacement que la base ; les protéger car elles peuvent contenir des PIN
+historiques en clair.
+
+## Version 12 — liens des paiements mixtes au comptant
+
+La migration ajoute `managed_sale_payments`, table reliant chaque mouvement de
+caisse d'un paiement mixte à sa vente. Elle n'altère ni ne reconstruit les ventes
+ou paiements historiques. Les ventes antérieures réglées en un moyen conservent
+leur lien direct existant. Aucune dette, consigne ou annulation n'est créée.
+La procédure reste manuelle, tous les accès arrêtés, après sauvegarde vérifiée de
+la base et des images et essai de migration puis restauration sur une copie ; la
+migration produit en outre une sauvegarde SQLite préalable. Testée uniquement sur
+bases temporaires, pas sur une base commerciale réelle.
+
+## Version 13 — annulations totales de ventes au comptant
+
+Ajoute les tables `managed_sale_cancellations` et `managed_sale_refunds`, qui
+conservent l'annulation et les liens entre encaissements initiaux et remboursements.
+Aucune vente historique n'est annulée ni reconstruite automatiquement. La
+migration est manuelle, application et autres accès arrêtés, avec sauvegarde
+SQLite préalable ; sauvegarder aussi les images séparément, puis essayer migration
+et restauration sur une copie avant toute intervention réelle. Vérifiée uniquement
+sur bases temporaires, sans migration d'une base commerciale.
+
+## Version 14 — nouveau circuit de crédit client
+
+Ajoute les profils de crédit explicites, les créances liées aux nouvelles ventes et
+les règlements liés aux mouvements de caisse. Aucun profil, solde ni créance n'est
+créé à partir des données historiques. La migration est manuelle, application et
+autres accès arrêtés ; sauvegarder base et images, tester migration et restauration
+sur une copie et vérifier le résultat avant toute intervention réelle. Une
+sauvegarde SQLite préalable est aussi créée par le script. Essais uniquement sur
+bases temporaires : aucune base commerciale n'a été migrée.
+
+## Version 15 — retours partiels de vente
+
+Ajoute les tables de retours, lignes retournées et liens aux mouvements de
+remboursement. Aucune vente, créance ou consigne antérieure n'est modifiée ou
+reconstruite. Arrêter tous les accès, sauvegarder base et images, puis tester la
+migration et la restauration sur une copie avant toute migration réelle. Le
+script crée aussi une sauvegarde SQLite préalable. Validation sur bases temporaires
+uniquement ; aucune base commerciale n'a été migrée.
+
+## Version 16 — contrepassation de retours
+
+Ajoute les tables d'annulation de retour et les liens aux mouvements de reprise
+des remboursements. Elle ne modifie aucun retour existant, ne crée pas de
+contre-écriture automatique et ne raccorde pas les consignes. Arrêter tous les
+accès, sauvegarder base et images, puis tester migration et restauration sur une
+copie avant toute migration réelle. Le script crée aussi une sauvegarde SQLite
+préalable. Validation sur bases temporaires uniquement ; aucune base commerciale
+n'a été migrée.
+
+## Version 17 — configuration des emballages consignés
+
+Ajoute les tables de déclaration « sans consigne » / « avec consigne » et de
+composition physique par conditionnement. La migration ne remplit aucune
+configuration et ne déduit aucune équivalence ou valeur de l'historique. En
+conséquence, chaque conditionnement existant doit être vérifié et configuré avant
+vente ; les ventes avec consigne restent bloquées, faute d'écritures intégrées.
+Application arrêtée, sauvegarde vérifiée de la base et des images séparément,
+essai de migration et restauration sur copie avant tout traitement réel. Le
+script crée en outre une sauvegarde SQLite préalable. Testée uniquement sur bases
+temporaires : aucune base commerciale n'a été migrée.
+
+## Version 18 — ventes et retours de consignes
+
+Ajoute les écritures de consigne client, retours de vides et liens aux remboursements. Aucun historique ni stock initial n'est reconstruit. Les configurations v17 restent à renseigner ; les ventes consignées sont désormais prises en charge dans le nouveau circuit. Avant migration réelle : arrêter l'application, sauvegarder et vérifier la base et les images séparément, puis tester migration et restauration sur une copie. Le script crée aussi une sauvegarde SQLite préalable. Migration testée uniquement sur bases temporaires, sans migration commerciale dans cette session.
+
+## Version 19 — catalogue des moyens de paiement
+
+Crée un catalogue local, initialisé avec les moyens techniques déjà reconnus par le circuit précédent ; aucune transaction n'est modifiée. Les nouveaux moyens sont créés dans les paramètres. Un renommage crée une nouvelle version et conserve l'ancien code et son libellé pour les écritures existantes ; les flux des deux versions restent distincts. Le moyen espèces demeure actif et immuable. Une désactivation empêche les nouvelles saisies mais ne bloque pas les contreparties d'opérations existantes. La migration a été testée sur bases temporaires, avec sauvegarde SQLite et conservation d'une vente synthétique ; aucune base commerciale n'a été migrée. Avant toute migration réelle : arrêter l'application, vérifier la sauvegarde de la base et des images séparément, puis tester migration et restauration sur une copie.
+
+## Version 20 — annulation des retours de vides
+
+Ajoute les tables de contrepassation et de liens aux reprises des remboursements. Aucune écriture antérieure n'est modifiée ; aucune contrepassation n'est créée automatiquement. Avant migration réelle : arrêter l'application, sauvegarder et vérifier la base et les images séparément, puis tester migration et restauration sur une copie. La migration et sa sauvegarde ont été testées sur base synthétique, pas sur une base commerciale.

@@ -8,6 +8,7 @@ from models.stock import StockMovement
 from models.packaging import ProductPackaging
 from services.packaging_service import quantity
 from money import fcfa
+from services.sqlite_transaction import locked_write
 
 class ProductService:
     def __init__(self, db: Session):
@@ -115,6 +116,7 @@ class ProductService:
             data[field] = quantity(data[field], field, allow_zero=True)
         return data
 
+    @locked_write
     def create_product(self, product_data: dict) -> Product:
         data = dict(product_data)
         initial = quantity(data.pop('stock_quantity', 0), 'Stock initial', allow_zero=True)
@@ -139,9 +141,11 @@ class ProductService:
             self.db.rollback()
             raise
 
+    @locked_write
     def update_product(self, product_id: int, product_data: dict) -> Optional[Product]:
         product = self.get_product_by_id(product_id)
         if not product:
+            self.db.rollback()
             return None
         data = self._validate_data(product_data)
         if 'unit' in data and data['unit'] != product.unit:

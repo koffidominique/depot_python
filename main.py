@@ -11,6 +11,7 @@ from pages.advanced_settings import create_advanced_settings_page
 from pages.products import create_products_page
 from pages.stock import create_stock_page
 from pages.managed_cash import create_managed_cash_page
+from pages.managed_dashboard import create_managed_dashboard_page
 from pages.managed_sales import create_managed_sales_page
 from pages.returnable_packaging import create_returnable_packaging_page
 from pages.purchases_phase3 import create_purchases_page
@@ -85,12 +86,11 @@ async def main_page():
                         state['db'] = SessionLocal()
                         create_managed_cash_page(state['db'], lambda: navigate('cash'))
                     elif state['page'] == 'settings':
-                        create_advanced_settings_page(auth)
+                        state['db'] = SessionLocal()
+                        create_advanced_settings_page(auth, state['db'], lambda: navigate('settings'))
                     else:
-                        with ui.column().classes('p-6 gap-3'):
-                            ui.label('Tableau de bord').classes('text-2xl font-bold')
-                            ui.label('Les modules commerciaux sont temporairement indisponibles pendant leur sécurisation.').classes('text-slate-700')
-                            ui.label('Les données existantes sont conservées.').classes('text-slate-600')
+                        state['db'] = SessionLocal()
+                        create_managed_dashboard_page(state['db'], lambda: navigate('dashboard'))
 
     def check_inactivity():
         if state['authenticated'] and time.monotonic() - state['last_activity'] >= auth.get_inactivity_seconds():
