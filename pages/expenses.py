@@ -2,6 +2,7 @@ from nicegui import ui
 from sqlalchemy.orm import Session
 from services.expense_service import ExpenseService
 from datetime import datetime, timedelta
+from enums import ExpenseCategory
 
 
 def create_expenses_page(db: Session):

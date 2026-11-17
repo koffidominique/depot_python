@@ -2,7 +2,8 @@ import shutil
 import sqlite3
 from pathlib import Path
 from datetime import datetime
-from config import DATA_DIR, DATABASE_URL
+from config import DATA_DIR, DB_URL as DATABASE_URL
+from logger import log_error, log_business, log_audit
 
 
 class BackupService:
@@ -21,6 +22,7 @@ class BackupService:
         if DATABASE_URL.startswith('sqlite:///'):
             db_path = DATABASE_URL.replace('sqlite:///', '')
             shutil.copy2(db_path, str(backup_path))
+            log_business("Création sauvegarde", f"Sauvegarde créée: {backup_filename}")
         
         return backup_path
     
@@ -44,8 +46,9 @@ class BackupService:
             db_path = DATABASE_URL.replace('sqlite:///', '')
             try:
                 shutil.copy2(str(backup_path), db_path)
+                log_business("Restauration sauvegarde", f"Sauvegarde {backup_path.name} restaurée avec succès")
                 return True
             except Exception as e:
-                print(f"Erreur de restauration: {e}")
+                log_error(f"Erreur de restauration de la sauvegarde {backup_path.name}: {e}")
                 return False
         return False

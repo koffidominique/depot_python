@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from services.sales_service import SalesService
 from services.client_service import ClientService
 from services.product_service import ProductService
-from models.sale import SaleStatus, PaymentMethod
+from enums import SaleStatus, PaymentMethod
 from datetime import datetime
 
 
@@ -69,7 +69,7 @@ def create_new_sale_page(db: Session, on_sale_complete=None):
         
         sale_data = {
             'client_id': selected_client_id['value'],
-            'sale_date': datetime.now(),
+            'date': datetime.now(),
             'status': SaleStatus.COMPLETED,
             'payment_method': payment_method['value'],
             'payment_amount': payment_amount['value'],
@@ -78,7 +78,7 @@ def create_new_sale_page(db: Session, on_sale_complete=None):
         
         try:
             sale = sales_service.create_sale(sale_data)
-            ui.notify(f'Vente n°{sale.invoice_number} enregistrée avec succès', type='success')
+            ui.notify(f'Vente n°{sale.reference} enregistrée avec succès', type='success')
             clear_cart()
             if on_sale_complete:
                 await on_sale_complete()

@@ -5,6 +5,7 @@ from models.stock import StockMovement
 from typing import List, Optional
 from datetime import datetime
 from decimal import Decimal
+from logger import log_error, log_business
 
 class StockService:
     def __init__(self, db: Session):
@@ -18,31 +19,48 @@ class StockService:
     
     def update_stock(self, product_id: int, quantity_change: Decimal, movement_type: str, 
                      unit: str = "unit", user_id: int = None, reason: str = None, 
-                     reference_document: str = None) -> bool:
-        product = self.db.query(Product).filter(Product.id == product_id).first()
-        if not product:
+                     reference_document: str = None, allow_negative_stock: bool = False,
+                     commit: bool = True) -> bool:
+        try:
+            product = self.db.query(Product).filter(Product.id == product_id).first()
+            if not product:
+                log_error(f"Produit {product_id} non trouvé lors de la mise à jour du stock")
+                return False
+            
+            stock_before = product.stock_quantity
+            stock_after = stock_before + quantity_change
+            
+            if not allow_negative_stock and stock_after < Decimal('0'):
+                log_error(f"Stock négatif interdit pour le produit {product_id}: {stock_after}")
+                return False
+            
+            movement = StockMovement(
+                product_id=product_id,
+                movement_type=movement_type,
+                quantity=quantity_change,
+                unit=unit,
+                stock_before=stock_before,
+                stock_after=stock_after,
+                user_id=user_id,
+                reason=reason,
+                reference_document=reference_document
+            )
+            
+            product.stock_quantity = stock_after
+            
+            self.db.add(movement)
+            self.db.flush()
+            
+            if commit:
+                self.db.commit()
+                log_business(f"Mouvement de stock", f"Produit {product_id}: {stock_before} -> {stock_after} (type: {movement_type})")
+            
+            return True
+        except Exception as e:
+            log_error(f"Erreur lors de la mise à jour du stock pour le produit {product_id}: {str(e)}")
+            if commit:
+                self.db.rollback()
             return False
-        
-        stock_before = product.stock_quantity
-        stock_after = stock_before + quantity_change
-        
-        movement = StockMovement(
-            product_id=product_id,
-            movement_type=movement_type,
-            quantity=quantity_change,
-            unit=unit,
-            stock_before=stock_before,
-            stock_after=stock_after,
-            user_id=user_id,
-            reason=reason,
-            reference_document=reference_document
-        )
-        
-        product.stock_quantity = stock_after
-        
-        self.db.add(movement)
-        self.db.commit()
-        return True
     
     def get_low_stock_products(self) -> List[Product]:
         return self.db.query(Product).filter(

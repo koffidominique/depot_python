@@ -142,3 +142,11 @@ class SalesService:
     def _generate_sale_reference(self) -> str:
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         return f"VTE-{timestamp}"
+    def get_sales_by_date_range(self, start_date: datetime, end_date: datetime, include_cancelled: bool = False) -> List[Sale]:
+        query = self.db.query(Sale)
+        if not include_cancelled:
+            query = query.filter(Sale.is_cancelled == False)
+        return query.filter(
+            Sale.date >= start_date,
+            Sale.date <= end_date
+        ).order_by(Sale.date.desc()).all()

@@ -24,13 +24,13 @@ def create_inventory_page(db: Session):
         total_products = len(filtered)
         total_value = sum(p.quantity * p.purchase_price for p in filtered if p.purchase_price)
         for product in filtered:
-            stock_status = 'En stock' if product.quantity > 0 else 'Rupture'
-            status_class = 'text-green-600' if product.quantity > 0 else 'text-red-600'
+            stock_status = 'En stock' if product.stock_quantity > 0 else 'Rupture'
+            status_class = 'text-green-600' if product.stock_quantity > 0 else 'text-red-600'
             table.rows.append({
                 'id': product.id,
                 'name': product.name,
                 'sku': product.sku or '-',
-                'quantity': product.quantity,
+                'quantity': product.stock_quantity,
                 'unit_price': f"{product.sale_price:,.0f} FCFA" if product.sale_price else '-',
                 'stock_status': stock_status,
                 'status_class': status_class,

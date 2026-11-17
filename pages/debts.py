@@ -2,7 +2,7 @@ from nicegui import ui
 from sqlalchemy.orm import Session
 from services.client_service import ClientService
 from services.supplier_service import SupplierService
-from models.debt import DebtType
+from enums import DebtType
 
 
 def create_debts_page(db: Session):

@@ -108,7 +108,6 @@ async def render_main_app():
         
         with ui.column().classes('flex-1 h-full bg-gray-100 p-0 m-0 overflow-auto'):
             create_header(current_user)
-            global page_content
             page_content = ui.column().classes('w-full flex-1 overflow-auto')
             render_page()
 
@@ -135,24 +134,14 @@ async def main_page():
 
 def initialize_app():
     init_db()
-    db = get_db()
-    auth_service = AuthService(db)
-    
-    if not auth_service.get_user_by_username('admin'):
-        auth_service.create_user(
-            username='admin',
-            password='admin123',
-            full_name='Administrateur',
-            role='admin'
-        )
+    from init_db import initialize_database
+    initialize_database()
 
 
 if __name__ in {'__main__', '__mp_main__'}:
     initialize_app()
     ui.run(
         title=f"{APP_NAME} v{APP_VERSION}",
-        native=True,
-        window_size=(1280, 800),
-        fullscreen=False,
+        port=8080,
         reload=False
     )

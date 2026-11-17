@@ -5,7 +5,7 @@ from typing import Optional
 from services.sales_service import SalesService
 from services.client_service import ClientService
 from services.product_service import ProductService
-from models.sale import SaleStatus, PaymentMethod
+from enums import SaleStatus, PaymentMethod
 
 
 def create_sales_page(db: Session):
@@ -26,9 +26,9 @@ def create_sales_page(db: Session):
     def filter_sales():
         filtered = sales
         if search_query['value']:
-            filtered = [s for s in filtered if search_query['value'].lower() in str(s.invoice_number).lower()]
+            filtered = [s for s in filtered if search_query['value'].lower() in str(s.reference).lower()]
         if selected_status['value']:
-            filtered = [s for s in filtered if s.status == selected_status['value']]
+            filtered = [s for s in filtered if s.sale_status == selected_status['value']]
         return filtered
     
     def refresh_table():
@@ -38,11 +38,11 @@ def create_sales_page(db: Session):
             client_name = sale.client.name if sale.client else "Client anonyme"
             table.rows.append({
                 'id': sale.id,
-                'invoice': sale.invoice_number,
-                'date': sale.sale_date.strftime('%d/%m/%Y %H:%M'),
+                'invoice': sale.reference,
+                'date': sale.date.strftime('%d/%m/%Y %H:%M'),
                 'client': client_name,
                 'total': f"{sale.total_amount:,.0f} FCFA",
-                'status': sale.status.value,
+                'status': sale.sale_status.value,
                 'payment': sale.payment_method.value
             })
         table.update()
@@ -65,7 +65,7 @@ def create_sales_page(db: Session):
                 ui.label('Nombre de ventes').classes('text-sm text-gray-500')
             
             with ui.card().classes('flex-1 p-4'):
-                pending_sales = [s for s in sales if s.status == SaleStatus.PENDING]
+                pending_sales = [s for s in sales if s.sale_status == SaleStatus.PENDING]
                 pending_total = sum(s.total_amount for s in pending_sales)
                 ui.label(f"{pending_total:,.0f} FCFA").classes('text-2xl font-bold text-orange-600')
                 ui.label('Ventes en attente').classes('text-sm text-gray-500')

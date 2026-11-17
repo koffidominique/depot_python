@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from services.purchase_service import PurchaseService
 from services.supplier_service import SupplierService
-from models.purchase import PurchaseStatus
+from enums import PurchaseStatus
 
 
 def create_purchases_page(db: Session):

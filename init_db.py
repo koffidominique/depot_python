@@ -1,24 +1,33 @@
-from database import init_db, SessionLocal
+from database import engine, SessionLocal, Base
 from services.auth_service import AuthService
 from services.product_service import ProductService
 from models.product import Category
+from models.user import Role
+import models
 from decimal import Decimal
+from logger import log_error, log_business, log_audit
 
 
 def initialize_database():
-    init_db()
+    Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     
     try:
         auth_service = AuthService(db)
+        
+        auth_service.initialize_default_roles()
+        log_business("Initialisation rôles", "Rôles et permissions initialisés avec succès")
+        
         if not auth_service.get_user_by_username('admin'):
+            admin_role = db.query(Role).filter(Role.name == 'Administrateur').first()
             auth_service.create_user(
                 username='admin',
                 password='admin123',
                 full_name='Administrateur',
-                role='admin'
+                role_id=admin_role.id,
+                email='admin@depotpro.ci'
             )
-            print("Utilisateur admin créé avec succès (identifiant: admin, mot de passe: admin123)")
+            log_business("Création utilisateur", "Utilisateur admin créé avec succès (identifiant: admin, mot de passe: admin123, PIN: 0000)")
         
         product_service = ProductService(db)
         categories = [
@@ -36,14 +45,14 @@ def initialize_database():
             existing = db.query(Category).filter(Category.name == cat_name).first()
             if not existing:
                 product_service.create_category(name=cat_name, description=f"Catégorie {cat_name}")
-                print(f"Catégorie {cat_name} créée avec succès")
+                log_business("Création catégorie", f"Catégorie {cat_name} créée avec succès")
         
         db.commit()
-        print("Base de données initialisée avec succès!")
+        log_business("Initialisation base de données", "Base de données initialisée avec succès!")
         
     except Exception as e:
         db.rollback()
-        print(f"Erreur lors de l'initialisation: {e}")
+        log_error(f"Erreur lors de l'initialisation: {e}")
     finally:
         db.close()
 

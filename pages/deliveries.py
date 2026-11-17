@@ -2,7 +2,7 @@ from nicegui import ui
 from sqlalchemy.orm import Session
 from services.sales_service import SalesService
 from services.client_service import ClientService
-from models.delivery import DeliveryStatus
+from enums import DeliveryStatus
 from datetime import datetime, timedelta
 
 

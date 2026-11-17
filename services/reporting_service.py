@@ -1,122 +1,125 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 from models.sale import Sale
+from models.expense import Expense
 from models.product import Product
 from models.client import Client
-from models.supplier import Supplier
-from models.stock import StockMovement
-from datetime import datetime, timedelta
 from decimal import Decimal
+from datetime import datetime, timedelta
 from typing import List, Dict
 
 class ReportingService:
     def __init__(self, db: Session):
         self.db = db
     
-    def get_dashboard_kpis(self) -> Dict:
-        today = datetime.now().date()
-        start_of_day = datetime.combine(today, datetime.min.time())
-        end_of_day = datetime.combine(today, datetime.max.time())
+    def get_daily_sales_report(self, date: datetime) -> Dict:
+        start_date = date.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = start_date + timedelta(days=1)
         
-        daily_sales = self.db.query(func.sum(Sale.total_amount)).filter(
-            Sale.date >= start_of_day,
-            Sale.date <= end_of_day,
-            Sale.is_cancelled == False
-        ).scalar() or Decimal('0.0')
+        sales = self.db.query(Sale).filter(
+            Sale.sale_date >= start_date,
+            Sale.sale_date < end_date,
+            Sale.status == 'completed'
+        ).all()
         
-        daily_sales_count = self.db.query(func.count(Sale.id)).filter(
-            Sale.date >= start_of_day,
-            Sale.date <= end_of_day,
-            Sale.is_cancelled == False
-        ).scalar() or 0
-        
-        stock_value = self._get_total_stock_value()
-        
-        low_stock_count = self.db.query(func.count(Product.id)).filter(
-            Product.is_active == True,
-            Product.stock_quantity <= Product.min_stock
-        ).scalar() or 0
-        
-        client_debts = self._get_total_client_debts()
-        supplier_debts = self._get_total_supplier_debts()
-        
-        active_clients = self.db.query(func.count(Client.id)).filter(
-            Client.is_active == True
-        ).scalar() or 0
-        
-        consignment_balance = self._get_total_consignment_balance()
+        total_sales = sum(s.total_amount for s in sales)
+        total_transactions = len(sales)
+        average_transaction = total_sales / total_transactions if total_transactions > 0 else Decimal('0')
         
         return {
-            'daily_sales': daily_sales,
-            'daily_sales_count': daily_sales_count,
-            'stock_value': stock_value,
-            'low_stock_count': low_stock_count,
-            'client_debts': client_debts,
-            'supplier_debts': supplier_debts,
-            'active_clients': active_clients,
-            'consignment_balance': consignment_balance
+            'date': date,
+            'total_sales': total_sales,
+            'total_transactions': total_transactions,
+            'average_transaction': average_transaction,
+            'sales': sales
         }
     
-    def get_sales_trend(self, days: int = 7) -> Dict:
-        end_date = datetime.now().date()
-        start_date = end_date - timedelta(days=days-1)
+    def get_daily_expenses_report(self, date: datetime) -> Dict:
+        start_date = date.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = start_date + timedelta(days=1)
         
-        sales_data = []
-        dates = []
+        expenses = self.db.query(Expense).filter(
+            Expense.expense_date >= start_date,
+            Expense.expense_date < end_date
+        ).all()
         
-        for i in range(days):
-            current_date = start_date + timedelta(days=i)
-            start_of_day = datetime.combine(current_date, datetime.min.time())
-            end_of_day = datetime.combine(current_date, datetime.max.time())
-            
-            daily_total = self.db.query(func.sum(Sale.total_amount)).filter(
-                Sale.date >= start_of_day,
-                Sale.date <= end_of_day,
-                Sale.is_cancelled == False
-            ).scalar() or Decimal('0.0')
-            
-            dates.append(current_date.strftime('%Y-%m-%d'))
-            sales_data.append(float(daily_total))
+        total_expenses = sum(e.amount for e in expenses)
         
-        return {'dates': dates, 'sales': sales_data}
+        return {
+            'date': date,
+            'total_expenses': total_expenses,
+            'expenses': expenses
+        }
     
-    def get_top_selling_products(self, limit: int = 10) -> List[Dict]:
+    def get_sales_summary_report(self, start_date: datetime, end_date: datetime) -> Dict:
+        sales = self.db.query(Sale).filter(
+            Sale.sale_date >= start_date,
+            Sale.sale_date <= end_date,
+            Sale.status == 'completed'
+        ).all()
+        
+        total_sales = sum(s.total_amount for s in sales)
+        total_paid = sum(s.total_amount for s in sales if s.payment_status == 'paid')
+        total_pending = sum(s.total_amount for s in sales if s.payment_status == 'pending')
+        
+        return {
+            'start_date': start_date,
+            'end_date': end_date,
+            'total_sales': total_sales,
+            'total_paid': total_paid,
+            'total_pending': total_pending,
+            'sales_count': len(sales)
+        }
+    
+    def get_top_selling_products(self, start_date: datetime, end_date: datetime, limit: int = 10) -> List[Dict]:
         from models.sale import SaleLine
-        
-        top_products = self.db.query(
+        results = self.db.query(
+            Product.id,
             Product.name,
-            func.sum(SaleLine.quantity).label('total_quantity'),
-            func.sum(SaleLine.line_total).label('total_revenue')
+            Product.sku,
+            SaleLine.quantity,
+            SaleLine.line_total
         ).join(SaleLine).join(Sale).filter(
-            Sale.is_cancelled == False
-        ).group_by(Product.id).order_by(func.sum(SaleLine.line_total).desc()).limit(limit).all()
+            Sale.sale_date >= start_date,
+            Sale.sale_date <= end_date,
+            Sale.status == 'completed'
+        ).all()
         
+        product_sales = {}
+        for product_id, name, sku, quantity, line_total in results:
+            if product_id not in product_sales:
+                product_sales[product_id] = {
+                    'id': product_id,
+                    'name': name,
+                    'sku': sku,
+                    'total_quantity': Decimal('0'),
+                    'total_sales': Decimal('0')
+                }
+            product_sales[product_id]['total_quantity'] += quantity
+            product_sales[product_id]['total_sales'] += line_total
+        
+        sorted_products = sorted(product_sales.values(), key=lambda x: x['total_sales'], reverse=True)
+        return sorted_products[:limit]
+    
+    def get_client_balance_report(self) -> List[Dict]:
+        clients = self.db.query(Client).all()
         return [
             {
-                'name': p.name,
-                'quantity': float(p.total_quantity),
-                'revenue': float(p.total_revenue)
-            } for p in top_products
+                'id': c.id,
+                'name': c.name,
+                'phone': c.phone,
+                'balance': c.balance,
+                'credit_limit': c.credit_limit
+            } for c in clients
         ]
     
-    def _get_total_stock_value(self) -> Decimal:
-        products = self.db.query(Product).filter(Product.is_active == True).all()
-        total_value = Decimal('0.0')
-        for product in products:
-            total_value += product.stock_quantity * product.purchase_price
-        return total_value
-    
-    def _get_total_client_debts(self) -> Decimal:
-        clients = self.db.query(Client).filter(Client.is_active == True).all()
-        total = sum(client.financial_balance for client in clients)
-        return total
-    
-    def _get_total_supplier_debts(self) -> Decimal:
-        suppliers = self.db.query(Supplier).filter(Supplier.is_active == True).all()
-        total = sum(supplier.balance_due for supplier in suppliers)
-        return total
-    
-    def _get_total_consignment_balance(self) -> Decimal:
-        clients = self.db.query(Client).filter(Client.is_active == True).all()
-        total = sum(client.consignment_balance for client in clients)
-        return total
+    def get_stock_valuation_report(self) -> Dict:
+        products = self.db.query(Product).all()
+        total_wholesale = sum(p.stock_quantity * p.wholesale_price for p in products)
+        total_retail = sum(p.stock_quantity * p.retail_price for p in products)
+        
+        return {
+            'products_count': len(products),
+            'total_wholesale_value': total_wholesale,
+            'total_retail_value': total_retail,
+            'products': products
+        }
