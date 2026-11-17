@@ -1,0 +1,37 @@
+# Fichiers de base de données
+*.db
+*.sqlite
+*.sqlite3
+
+# Dossier de données utilisateur
+DepotPro_Data/
+
+# Fichiers de configuration locaux
+.env
+.env.local
+
+# Fichiers Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+.venv/
+
+# Fichiers IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Fichiers de logs
+*.log
+logs/
+
+# Fichiers de sauvegarde
+*.backup
+*.bak
