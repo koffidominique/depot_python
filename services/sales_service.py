@@ -7,6 +7,8 @@ from services.stock_service import StockService
 from typing import List, Optional
 from datetime import datetime
 from decimal import Decimal
+from money import fcfa
+from validation import validate_quantity, validate_price, validate_discount
 
 class SalesService:
     def __init__(self, db: Session):
@@ -23,6 +25,16 @@ class SalesService:
         return self.db.query(Sale).filter(Sale.id == sale_id).first()
     
     def create_sale(self, sale_data: dict, sale_lines_data: List[dict], user_id: int = None) -> Optional[Sale]:
+        if not sale_lines_data:
+            raise ValueError("La vente doit comporter au moins une ligne")
+        # Valider tous les montants avant toute écriture, y compris les produits
+        # de quantités fractionnaires par des prix entiers.
+        for line in sale_lines_data:
+            quantity = validate_quantity(line['quantity'])
+            price = validate_price(line['unit_price'])
+            discount = validate_discount(line.get('discount', 0))
+            validate_price(line.get('consignment', 0), 'Consigne')
+            fcfa(quantity * price - discount, 'Total de ligne')
         reference = self._generate_sale_reference()
         
         total_amount = Decimal('0.0')
@@ -69,13 +81,17 @@ class SalesService:
             self.db.add(sale_line)
             
             stock_change = -quantity
-            self.stock_service.update_stock(
+            stock_updated = self.stock_service.update_stock(
                 product_id=product.id,
                 quantity_change=stock_change,
                 movement_type='sale',
                 user_id=user_id,
-                reference_document=reference
+                reference_document=reference,
+                commit=False
             )
+            if not stock_updated:
+                self.db.rollback()
+                return None
         
         net_amount = total_amount + consignment_amount
         sale.total_amount = total_amount
@@ -113,13 +129,17 @@ class SalesService:
         
         for line in sale.sale_lines:
             stock_change = line.quantity
-            self.stock_service.update_stock(
+            stock_updated = self.stock_service.update_stock(
                 product_id=line.product_id,
                 quantity_change=stock_change,
                 movement_type='sale_cancellation',
                 user_id=user_id,
-                reference_document=sale.reference
+                reference_document=sale.reference,
+                commit=False
             )
+            if not stock_updated:
+                self.db.rollback()
+                return False
         
         self.db.commit()
         return True

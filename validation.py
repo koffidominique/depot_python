@@ -1,3 +1,4 @@
+from money import fcfa
 from decimal import Decimal, InvalidOperation
 from datetime import datetime
 from typing import Optional, Union
@@ -26,32 +27,19 @@ def validate_quantity(value: Union[int, float, Decimal], field_name: str = "Quan
     except (InvalidOperation, TypeError):
         raise ValueError(f"{field_name} must be a valid quantity")
 
-def validate_price(value: Union[int, float, Decimal], field_name: str = "Price") -> Decimal:
-    try:
-        decimal_value = Decimal(str(value))
-        if decimal_value < Decimal('0'):
-            raise ValueError(f"{field_name} must be positive")
-        return decimal_value.quantize(Decimal('0.01'))
-    except (InvalidOperation, TypeError):
-        raise ValueError(f"{field_name} must be a valid price")
+def validate_price(value: Union[int, float, Decimal], field_name: str = "Price") -> int:
+    result = fcfa(value, field_name)
+    if result < 0:
+        raise ValueError(f"{field_name} must be positive")
+    return result
 
-def validate_amount(value: Union[int, float, Decimal], field_name: str = "Amount") -> Decimal:
-    try:
-        decimal_value = Decimal(str(value))
-        if decimal_value < Decimal('0'):
-            raise ValueError(f"{field_name} must be positive")
-        return decimal_value.quantize(Decimal('0.01'))
-    except (InvalidOperation, TypeError):
-        raise ValueError(f"{field_name} must be a valid amount")
 
-def validate_discount(value: Union[int, float, Decimal], field_name: str = "Discount") -> Decimal:
-    try:
-        decimal_value = Decimal(str(value))
-        if decimal_value < Decimal('0'):
-            raise ValueError(f"{field_name} must be positive")
-        return decimal_value.quantize(Decimal('0.01'))
-    except (InvalidOperation, TypeError):
-        raise ValueError(f"{field_name} must be a valid discount")
+def validate_amount(value: Union[int, float, Decimal], field_name: str = "Amount") -> int:
+    return validate_price(value, field_name)
+
+
+def validate_discount(value: Union[int, float, Decimal], field_name: str = "Discount") -> int:
+    return validate_price(value, field_name)
 
 def validate_date(value: Optional[Union[datetime, str]], field_name: str = "Date") -> Optional[datetime]:
     if value is None:
@@ -124,14 +112,14 @@ def calculate_line_total(quantity: Decimal, unit_price: Decimal, discount: Decim
     unit_price = validate_price(unit_price)
     discount = validate_discount(discount)
     total = quantity * unit_price - discount
-    return total.quantize(Decimal('0.01'))
+    return fcfa(total, "Total de ligne")
 
 def calculate_sale_totals(sale_lines: list) -> dict:
     total_amount = sum(line.line_total for line in sale_lines)
     discount_amount = sum(getattr(line, 'discount', Decimal('0')) for line in sale_lines)
     net_amount = total_amount - discount_amount
     return {
-        'total_amount': total_amount.quantize(Decimal('0.01')),
-        'discount_amount': discount_amount.quantize(Decimal('0.01')),
-        'net_amount': net_amount.quantize(Decimal('0.01'))
+        'total_amount': fcfa(total_amount),
+        'discount_amount': fcfa(discount_amount),
+        'net_amount': fcfa(net_amount)
     }

@@ -1,3 +1,4 @@
+from money import CFAAmount
 from sqlalchemy import Column, Integer, String, ForeignKey, Text, Numeric, DateTime, Boolean, CheckConstraint, Index
 from sqlalchemy.orm import relationship
 from database import Base
@@ -10,13 +11,13 @@ class Sale(Base):
     reference = Column(String, unique=True, index=True, nullable=False)
     client_id = Column(Integer, ForeignKey("clients.id"), nullable=True)
     date = Column(DateTime, default=datetime.utcnow, nullable=False)
-    total_amount = Column(Numeric(precision=10, scale=2), default=0.0)
-    discount_amount = Column(Numeric(precision=10, scale=2), default=0.0)
-    tax_amount = Column(Numeric(precision=10, scale=2), default=0.0)
-    consignment_amount = Column(Numeric(precision=10, scale=2), default=0.0)
-    net_amount = Column(Numeric(precision=10, scale=2), default=0.0)
-    amount_paid = Column(Numeric(precision=10, scale=2), default=0.0)
-    remaining_amount = Column(Numeric(precision=10, scale=2), default=0.0)
+    total_amount = Column(CFAAmount(), default=0.0)
+    discount_amount = Column(CFAAmount(), default=0.0)
+    tax_amount = Column(CFAAmount(), default=0.0)
+    consignment_amount = Column(CFAAmount(), default=0.0)
+    net_amount = Column(CFAAmount(), default=0.0)
+    amount_paid = Column(CFAAmount(), default=0.0)
+    remaining_amount = Column(CFAAmount(), default=0.0)
     payment_status = Column(String, default="pending")
     sale_status = Column(String, default="draft")
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
@@ -49,10 +50,10 @@ class SaleLine(Base):
     sale_id = Column(Integer, ForeignKey("sales.id"), nullable=False)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
     quantity = Column(Numeric(precision=10, scale=3), nullable=False)
-    unit_price = Column(Numeric(precision=10, scale=2), nullable=False)
-    discount = Column(Numeric(precision=10, scale=2), default=0.0)
-    consignment = Column(Numeric(precision=10, scale=2), default=0.0)
-    line_total = Column(Numeric(precision=10, scale=2), nullable=False)
+    unit_price = Column(CFAAmount(), nullable=False)
+    discount = Column(CFAAmount(), default=0.0)
+    consignment = Column(CFAAmount(), default=0.0)
+    line_total = Column(CFAAmount(), nullable=False)
     
     sale = relationship("Sale", back_populates="sale_lines")
     product = relationship("Product", back_populates="sale_lines")

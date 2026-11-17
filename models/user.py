@@ -28,7 +28,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True)
     password_hash = Column(String)
-    pin_code = Column(String(4), default="0000")
+    pin_code = Column(String(4), nullable=True)
     full_name = Column(String)
     email = Column(String, nullable=True)
     role_id = Column(Integer, ForeignKey("roles.id"))

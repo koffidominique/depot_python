@@ -1,3 +1,4 @@
+from money import CFAAmount
 from sqlalchemy import Column, Integer, String, Text, Numeric, Boolean, DateTime, CheckConstraint, Index
 from sqlalchemy.orm import relationship
 from database import Base
@@ -15,8 +16,8 @@ class Supplier(Base):
     email = Column(String, nullable=True)
     contact_person = Column(String, nullable=True)
     payment_terms = Column(Integer, default=0)
-    balance_due = Column(Numeric(precision=10, scale=2), default=0.0)
-    total_purchases = Column(Numeric(precision=10, scale=2), default=0.0)
+    balance_due = Column(CFAAmount(), default=0.0)
+    total_purchases = Column(CFAAmount(), default=0.0)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     

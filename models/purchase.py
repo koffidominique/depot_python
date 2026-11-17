@@ -1,3 +1,4 @@
+from money import CFAAmount
 from sqlalchemy import Column, Integer, String, ForeignKey, Text, Numeric, DateTime, Boolean, CheckConstraint, Index
 from sqlalchemy.orm import relationship
 from database import Base
@@ -12,8 +13,8 @@ class PurchaseOrder(Base):
     date = Column(DateTime, default=datetime.utcnow, nullable=False)
     order_date = Column(DateTime, nullable=True)
     expected_date = Column(DateTime, nullable=True)
-    total_amount = Column(Numeric(precision=10, scale=2), default=0.0)
-    received_amount = Column(Numeric(precision=10, scale=2), default=0.0)
+    total_amount = Column(CFAAmount(), default=0.0)
+    received_amount = Column(CFAAmount(), default=0.0)
     status = Column(String, default="draft")
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     notes = Column(Text, nullable=True)
@@ -39,8 +40,16 @@ class PurchaseOrderLine(Base):
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
     ordered_quantity = Column(Numeric(precision=10, scale=3), nullable=False)
     received_quantity = Column(Numeric(precision=10, scale=3), default=0.0)
-    unit_price = Column(Numeric(precision=10, scale=2), nullable=False)
-    line_total = Column(Numeric(precision=10, scale=2), nullable=False)
+    # Instantané, inchangé si le conditionnement est modifié plus tard.
+    packaging_id = Column(Integer, ForeignKey('product_packagings.id'), nullable=True)
+    packaging_name = Column(String, nullable=True)
+    base_unit = Column(String, nullable=True)
+    conversion_factor = Column(Numeric(10, 3), nullable=True)
+    allow_fraction = Column(Boolean, nullable=True)
+    unit_price = Column(CFAAmount(), nullable=False)
+    unit_discount = Column(CFAAmount(), nullable=True)
+    unit_fee = Column(CFAAmount(), nullable=True)
+    line_total = Column(CFAAmount(), nullable=False)
     
     purchase_order = relationship("PurchaseOrder", back_populates="purchase_order_lines")
     product = relationship("Product", back_populates="purchase_order_lines")

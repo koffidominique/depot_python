@@ -1,3 +1,4 @@
+from money import CFAAmount
 from sqlalchemy import Column, Integer, String, Float, ForeignKey, Text, Numeric, DateTime
 from sqlalchemy.orm import relationship
 from database import Base
@@ -10,7 +11,7 @@ class Expense(Base):
     reference = Column(String, unique=True, index=True)
     date = Column(DateTime, default=datetime.utcnow)
     category = Column(String)
-    amount = Column(Numeric(precision=10, scale=2))
+    amount = Column(CFAAmount())
     payment_method = Column(String)
     beneficiary = Column(String, nullable=True)
     receipt_path = Column(String, nullable=True)

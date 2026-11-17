@@ -5,6 +5,7 @@ from models.stock import StockMovement
 from typing import List, Optional
 from datetime import datetime
 from decimal import Decimal
+from fractions import Fraction
 from logger import log_error, log_business
 
 class StockService:
@@ -80,9 +81,19 @@ class StockService:
             query = query.filter(StockMovement.product_id == product_id)
         return query.order_by(StockMovement.date.desc()).limit(limit).all()
     
-    def get_total_stock_value(self) -> Decimal:
+    def get_total_stock_value(self) -> int:
+        """Valeur exacte au coût moyen ; aucun prix d'achat estimé par défaut."""
         products = self.db.query(Product).filter(Product.is_active == True).all()
-        total_value = Decimal('0.0')
+        total = Fraction(0)
         for product in products:
-            total_value += product.stock_quantity * product.purchase_price
-        return total_value
+            if product.stock_quantity is None or product.stock_quantity < 0:
+                raise ValueError(f'Stock incohérent pour {product.name} : valorisation indisponible.')
+            if not product.stock_quantity:
+                continue
+            cost = product.average_cost
+            if cost is None:
+                raise ValueError(f'Coût moyen non renseigné pour {product.name} : valorisation indisponible.')
+            total += Fraction(product.stock_quantity) * cost
+        if total.denominator != 1:
+            raise ValueError('La valorisation ne représente pas un nombre entier de FCFA.')
+        return total.numerator
