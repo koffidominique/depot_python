@@ -5,7 +5,7 @@ from sqlalchemy import func
 from models.cash import CashSession
 from models.managed_cash import ManagedCashEntry, ManagedCashSession
 from models.managed_operations import ManagedCashTransaction
-from services.cash_methods import METHODS
+from services.cash_methods import require_active
 from money import fcfa
 from validation import validate_price
 
@@ -55,7 +55,7 @@ class ManagedCashService:
     def record(self, session_id, kind, method, amount, description, request_key, category=None, beneficiary=None, reference=None):
         """Mouvement manuel ; les ventes et paiements fournisseurs ont leur propre transaction."""
         from services.purchase_service import lock_for_write
-        if kind not in ('expense', 'income', 'outflow', 'correction_in', 'correction_out') or method not in METHODS:
+        if kind not in ('expense', 'income', 'outflow', 'correction_in', 'correction_out'):
             raise ValueError('Type ou moyen de mouvement invalide.')
         amount = validate_price(amount, 'Montant')
         if amount <= 0:
@@ -80,6 +80,7 @@ class ManagedCashService:
                     self.db.rollback()
                     return self.db.get(ManagedCashTransaction, ident)
                 raise ValueError('Cette clé de mouvement a déjà été utilisée.')
+            require_active(self.db, method)
             session = self.db.get(ManagedCashSession, session_id)
             if not session or session.status != 'open':
                 raise ValueError('Une caisse ouverte est obligatoire.')

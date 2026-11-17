@@ -9,7 +9,7 @@ from models.supplier import Supplier
 from services.purchase_service import PurchaseService, SupplierPaymentService
 from services.managed_cash_service import ManagedCashService
 from services.supplier_phase3_service import SupplierPhase3Service
-from services.cash_methods import METHODS
+from services.cash_methods import labels
 
 
 STATUS = {'draft': 'Brouillon', 'validated': 'Validée', 'partially_received': 'Partiellement réceptionnée',
@@ -17,6 +17,8 @@ STATUS = {'draft': 'Brouillon', 'validated': 'Validée', 'partially_received': '
 
 
 def create_purchases_page(db, refresh_page):
+    METHODS = labels(db, active_only=True)
+    ALL_METHODS = labels(db)
     service = PurchaseService(db)
     def run(action):
         try:
@@ -117,7 +119,7 @@ def create_purchases_page(db, refresh_page):
         for debt in legacy_debts:
             ui.label(f'Dette historique {debt.reference} — fournisseur {debt.supplier.name} — total {debt.initial_amount} FCFA — payé {debt.paid_amount} FCFA — reste {debt.remaining_amount} FCFA — lecture seule')
             for payment in debt.payments:
-                ui.label(f'Règlement historique {payment.date} : {payment.amount} FCFA — {METHODS.get(payment.payment_method, payment.payment_method)}')
+                ui.label(f'Règlement historique {payment.date} : {payment.amount} FCFA — {ALL_METHODS.get(payment.payment_method, payment.payment_method)}')
     ui.label('Commandes récentes').classes('text-xl font-semibold')
 
     def order_details(order_id):
@@ -166,7 +168,7 @@ def create_purchases_page(db, refresh_page):
                 for debt in debts:
                     ui.label(f'Dette {debt.reference} — total {debt.initial_amount} FCFA — payé {debt.paid_amount} FCFA — reste {debt.remaining_amount} FCFA — échéance {debt.due_date or "non renseignée"}')
                     for payment in debt.payments:
-                        ui.label(f'Règlement {payment.date} : {payment.amount} FCFA — {METHODS.get(payment.payment_method, payment.payment_method)} — {payment.reference} — {"lié à la caisse" if payment.cash_link_status == "linked_cash" else "hors caisse / historique"}')
+                        ui.label(f'Règlement {payment.date} : {payment.amount} FCFA — {ALL_METHODS.get(payment.payment_method, payment.payment_method)} — {payment.reference} — {"lié à la caisse" if payment.cash_link_status == "linked_cash" else "hors caisse / historique"}')
                     if debt.receipt_id is not None and debt.remaining_amount and not debt.is_cancelled:
                         def payment_dialog(debt_id=debt.id):
                             with ui.dialog() as payment_box, ui.card():

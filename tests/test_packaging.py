@@ -77,3 +77,66 @@ def test_codes_barres_uniques_entre_produits_et_conditionnements(db_session, pro
     ProductService(db_session).update_product(product.id, {'barcode': '456'})
     with pytest.raises(ValueError, match='code-barres'):
         service.save(product.id, {'name': 'pack', 'coefficient': 6, 'barcode': '456'})
+
+
+def test_code_barres_ecritures_concurrentes_produit_conditionnement(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    from sqlalchemy import create_engine, select
+    from sqlalchemy.orm import sessionmaker
+    from database import Base
+    from models.product import Product
+    from models.packaging import ProductPackaging
+    engine = create_engine(f'sqlite:///{tmp_path / "concurrent.db"}', connect_args={'timeout': 20})
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, autoflush=False)
+    with factory() as db:
+        products = ProductService(db)
+        category = products.create_category('Test')
+        product = products.create_product({'name': 'Initial', 'unit': 'bouteille', 'category_id': category.id})
+        product_id, category_id = product.id, category.id
+    barrier = Barrier(2)
+    def write(kind):
+        with factory() as db:
+            barrier.wait(timeout=10)
+            try:
+                if kind == 'produit':
+                    ProductService(db).create_product({'name': 'Autre', 'unit': 'bouteille',
+                                                       'category_id': category_id, 'barcode': '123456'})
+                else:
+                    PackagingService(db).save(product_id, {'name': 'pack', 'coefficient': 6, 'barcode': '123456'})
+                return True
+            except ValueError as exc:
+                assert 'code-barres' in str(exc)
+                return False
+    try:
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            assert sorted(executor.map(write, ('produit', 'conditionnement'))) == [False, True]
+        with factory() as db:
+            product_count = len(db.execute(select(Product).where(Product.barcode == '123456')).scalars().all())
+            package_count = len(db.execute(select(ProductPackaging).where(ProductPackaging.barcode == '123456')).scalars().all())
+            assert product_count + package_count == 1
+    finally:
+        engine.dispose()
+
+
+def test_refus_modifications_en_attente_ne_les_annule_pas(db_session, product):
+    product.name = 'Modification non enregistrée'
+    with pytest.raises(ValueError, match='modifications en cours'):
+        PackagingService(db_session).save(product.id, {'name': 'pack', 'coefficient': 6})
+    assert product.name == 'Modification non enregistrée'
+    assert product in db_session.dirty
+    db_session.rollback()
+
+
+def test_conditionnement_canette_unite_de_base(db_session):
+    products = ProductService(db_session)
+    category = products.create_category('Canettes test')
+    product = products.create_product({'name': 'Produit test canette', 'category_id': category.id,
+                                       'unit': 'canette'})
+    service = PackagingService(db_session)
+    item = service.save(product.id, {'name': 'canette', 'coefficient': 1, 'retail_price': 250})
+    assert service.to_base(item.id, 3) == Decimal('3')
+    assert service.price(item.id, 'retail') == 250
+    with pytest.raises(ValueError, match='coefficient de 1'):
+        service.save(product.id, {'name': 'canette', 'coefficient': 2}, item.id)

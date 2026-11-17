@@ -50,39 +50,46 @@ class OwnerAuthService:
             row.locked_until = 0
             db.commit()
 
+    def _check_locked(self, db, pin):
+        """Vérifie et modifie le compteur sous le même verrou SQLite."""
+        row = db.get(OwnerSecurity, 1)
+        if not row or not row.pin_hash:
+            raise ValueError('Configurez d’abord votre code PIN.')
+        now = int(self.clock())
+        if row.locked_until > now:
+            raise PinLocked(row.locked_until - now)
+        if bcrypt.checkpw(pin.encode('ascii'), row.pin_hash.encode('ascii')):
+            row.failed_attempts = 0
+            row.locked_until = 0
+            return row, True
+        row.failed_attempts += 1
+        if row.failed_attempts >= 3:
+            row.locked_until = now + min(300, 5 * 2 ** min(row.failed_attempts - 3, 6))
+        return row, False
+
     def verify_pin(self, pin):
         self._validate(pin)
         with self.session_factory() as db:
             self._lock(db)
-            row = db.get(OwnerSecurity, 1)
-            if not row or not row.pin_hash:
-                raise ValueError('Configurez d’abord votre code PIN.')
-            now = int(self.clock())
-            if row.locked_until > now:
-                raise PinLocked(row.locked_until - now)
-            if bcrypt.checkpw(pin.encode('ascii'), row.pin_hash.encode('ascii')):
-                row.failed_attempts = 0
-                row.locked_until = 0
-                db.commit()
-                return True
-            row.failed_attempts += 1
-            if row.failed_attempts >= 3:
-                row.locked_until = now + min(300, 5 * 2 ** min(row.failed_attempts - 3, 6))
+            _, accepted = self._check_locked(db, pin)
             db.commit()
-            return False
+            return accepted
 
     def change_pin(self, current, new, confirmation):
+        self._validate(current)
         self._validate(new)
         if new != confirmation:
             raise ValueError('Les deux nouveaux codes PIN ne correspondent pas.')
-        if not self.verify_pin(current):
-            raise ValueError('Code PIN actuel incorrect.')
         hashed = bcrypt.hashpw(new.encode('ascii'), bcrypt.gensalt()).decode('ascii')
         with self.session_factory() as db:
             self._lock(db)
-            row = db.get(OwnerSecurity, 1)
-            row.pin_hash = hashed
+            row, accepted = self._check_locked(db, current)
+            if accepted:
+                row.pin_hash = hashed
+            # Persister aussi les tentatives incorrectes avant de signaler l'erreur.
             db.commit()
+            if not accepted:
+                raise ValueError('Code PIN actuel incorrect.')
 
     def get_inactivity_seconds(self):
         with self.session_factory() as db:

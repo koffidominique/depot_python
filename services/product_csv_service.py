@@ -6,6 +6,7 @@ from models.product import Product, Category
 from models.stock import StockMovement
 from services.packaging_service import quantity
 from services.product_service import ProductService
+from services.sqlite_transaction import locked_write
 
 FIELDS = ['reference', 'name', 'category', 'unit', 'barcode', 'purchase_price',
           'wholesale_price', 'retail_price', 'semi_wholesale_price', 'stock_quantity', 'min_stock']
@@ -32,8 +33,12 @@ class ProductCSVService:
     def preview(self, contents):
         if not isinstance(contents, str) or len(contents.encode('utf-8')) > 1024 * 1024:
             raise ValueError('Le fichier CSV dépasse 1 Mo ou son encodage est invalide.')
-        reader = csv.DictReader(io.StringIO(contents.lstrip('\ufeff'), newline=''))
-        if not reader.fieldnames or len(set(reader.fieldnames)) != len(reader.fieldnames) or set(reader.fieldnames) != set(FIELDS):
+        reader = csv.DictReader(io.StringIO(contents.lstrip('\ufeff'), newline=''), strict=True)
+        try:
+            fields = reader.fieldnames
+        except csv.Error as exc:
+            raise ValueError(f'Fichier CSV illisible : {exc}') from exc
+        if not fields or len(set(fields)) != len(fields) or set(fields) != set(FIELDS):
             raise ValueError('En-têtes CSV invalides. Utilisez le format exporté par DEPOTPRO.')
         output, seen_refs, seen_barcodes = [], set(), set()
         try:
@@ -80,6 +85,7 @@ class ProductCSVService:
             raise ValueError('Le fichier ne contient aucun produit.')
         return output
 
+    @locked_write
     def import_csv(self, contents):
         rows = self.preview(contents)
         if any(row['errors'] for row in rows):

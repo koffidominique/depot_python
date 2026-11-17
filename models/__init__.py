@@ -30,3 +30,12 @@ from models.returnable_packaging import ReturnablePackagingType
 from models.returnable_stock import ReturnableStockBalance, ReturnableStockMovement
 from models.managed_cash import ManagedCashSession, ManagedCashEntry
 from models.managed_operations import ManagedSale, ManagedSaleLine, ManagedCashTransaction
+from models.managed_operations import ManagedSalePayment
+from models.managed_operations import ManagedSaleCancellation, ManagedSaleRefund
+from models.managed_credit import ManagedCreditProfile, ManagedCreditSale, ManagedCreditPayment
+from models.managed_returns import ManagedReturn, ManagedReturnLine, ManagedReturnRefund
+from models.managed_returns import ManagedReturnCancellation, ManagedReturnRecapture
+from models.deposit_configuration import DepositPackagingProfile, DepositPackagingComponent
+from models.managed_deposit import ManagedDepositIssue, ManagedDepositReturn, ManagedDepositRefund
+from models.payment_method import PaymentMethod
+from models.managed_deposit import ManagedDepositReturnCancellation, ManagedDepositReturnRecapture

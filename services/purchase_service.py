@@ -1,7 +1,6 @@
 """Commandes et réceptions de marchandises ; paiements fournisseurs non intégrés."""
 from fractions import Fraction
 from uuid import uuid4
-from sqlalchemy import text
 from models.purchase import PurchaseOrder, PurchaseOrderLine
 from models.product import Product
 from models.supplier import Supplier
@@ -13,19 +12,8 @@ from money import fcfa
 from services.packaging_service import quantity
 from services.stock_service import StockService
 from validation import validate_price, validate_date, validate_reference
+from services.sqlite_transaction import lock_for_write
 
-
-def lock_for_write(db):
-    """Réserve SQLite avant toute lecture métier ; refuse les écritures étrangères en attente."""
-    if db.new or db.dirty or db.deleted:
-        raise ValueError('Terminez les modifications en cours avant cette opération.')
-    connection = db.connection()
-    raw = connection.connection.driver_connection
-    if raw.in_transaction:
-        raise ValueError('Une transaction d’écriture est déjà en cours.')
-    connection.execute(text('BEGIN IMMEDIATE'))
-    # Une session longue peut conserver des objets lus avant le verrou.
-    db.expire_all()
 
 
 class PurchaseService:
@@ -210,8 +198,6 @@ class PurchaseService:
 
 class SupplierPaymentService:
     """Règlements fournisseurs atomiquement liés à une session de trésorerie."""
-    from services.cash_methods import METHODS as _METHOD_LABELS
-    METHODS = tuple(_METHOD_LABELS)
 
     def __init__(self, db):
         self.db = db
@@ -225,7 +211,7 @@ class SupplierPaymentService:
         notes = (notes or '').strip() or None
         if notes and len(notes) > 1000:
             raise ValueError('Note de règlement trop longue.')
-        if amount <= 0 or method not in self.METHODS:
+        if amount <= 0:
             raise ValueError('Montant positif et moyen de paiement valide requis.')
         reference = f'REG-FOUR-{request_key}'
         if not isinstance(cash_session_id, int) or isinstance(cash_session_id, bool):
@@ -243,6 +229,8 @@ class SupplierPaymentService:
                     self.db.rollback()
                     return self.db.get(Payment, previous_id)
                 raise ValueError('Cette clé de règlement a déjà été utilisée.')
+            from services.cash_methods import require_active
+            require_active(self.db, method)
             session = self.db.get(ManagedCashSession, cash_session_id)
             if not session or session.status != 'open':
                 raise ValueError('Une session de caisse ouverte est obligatoire.')

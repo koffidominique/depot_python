@@ -77,3 +77,113 @@
   ni lien aux anciens rapports ou PDF. Les moyens non espèces ne sont pas soldés.
   Les écritures manuelles ne doivent pas reproduire un paiement déjà enregistré.
   Ne pas utiliser en production avant réalisation et validation de ces fonctions.
+
+### Audit actualisé — reprise phase 0
+- Diagnostic réécrit dans `docs/AUDIT_TECHNIQUE.md` pour refléter les modules
+  actifs, les historiques parallèles, les risques actuels et les étapes suivantes.
+- Vérifications Linux : 110 tests réussis, 7 tests navigateur ignorés ; deux imports
+  historiques en échec. Aucune base commerciale inspectée ou migrée.
+
+## Reprise phase 1 — 17 novembre 2026
+
+- Changement du PIN : vérification de l'ancien PIN et écriture sous un même verrou
+  transactionnel ; les tentatives incorrectes restent enregistrées.
+- Démarrage : contrôle en lecture seule de l'intégrité, des clés étrangères, des
+  tables/colonnes des modèles et de certaines unicités critiques, sans réparation
+  implicite d'une base existante ; vérification également après première création.
+- Architecture actualisée et tests de concurrence et de refus non destructif.
+  Voir `TESTS.md` pour les limites de la validation actuelle.
+- Validation navigateur Linux relancée : suite complète 121 tests réussis, puis
+  tests ciblés supplémentaires pour le schéma migré et l'index de caisse incorrect.
+
+## Reprise phase 2 — 17 novembre 2026
+
+- Sérialisation des contrôles et écritures produits, conditionnements et import
+  CSV sous verrou SQLite ; aucun changement de schéma ni migration de base réelle.
+- CSV mal formé refusé ; avertissement d'interface sur le caractère partiel de
+  l'échange CSV et correction d'un texte de présentation devenu obsolète.
+- Tests de concurrence, d'échec sans perte des modifications en attente, des cinq
+  types de conditionnement et des conflits CSV. Limites dans `ARCHITECTURE.md`.
+
+## Prix ajusté et migration 11 — 17 novembre 2026
+
+- Protection SQLite inter-tables des codes-barres avec refus non destructif des
+  collisions préexistantes, sauvegarde et vérification des protections au démarrage.
+- Prix unitaire ajustable explicitement dans les ventes au comptant, tarif source
+  vérifié à la confirmation, prix réellement appliqué conservé dans l'historique.
+- Tests SQLite directs, migration, stock/caisse et parcours navigateur ; les autres
+  fonctionnalités commerciales et les validations cibles restent incomplètes.
+
+## Paiements mixtes au comptant — 17 novembre 2026
+
+- Paiement intégral réparti sur plusieurs moyens distincts, montants FCFA entiers
+  positifs, caisse et stock atomiques, total exact et liens aux mouvements.
+- Migration 12 avec sauvegarde sur copie, sans recréer les liens historiques.
+- Parcours d'interface et tests ; crédit, consignes et annulations non achevés.
+
+## Annulation totale au comptant — 17 novembre 2026
+
+- Migration 13 : tables d'annulation et liens entre remboursement et encaissement,
+  sans réinterprétation des historiques.
+- Annulation complète des nouvelles ventes au comptant, y compris paiement mixte :
+  confirmation de récupération totale, stock et remboursements atomiques, calcul
+  du coût moyen si connu, traçabilité et affichage du statut ; pas de retour partiel.
+- Les ventes à crédit et les consignes intégrées restent à développer et ne sont
+  pas couvertes par cette procédure. Aucun traitement sur une base réelle.
+
+## Crédit — premier circuit, 17 novembre 2026
+
+- Migration 14 et profils explicites pour nouveaux clients, créances et règlements
+  transactionnels ; aucun rapprochement historique automatique.
+- Vente à crédit avec acompte éventuellement mixte, plafond et confirmation de
+  dépassement, règlements idempotents et liens aux mouvements de caisse.
+- Tests métier, concurrence, migration sur copie et navigateur. Crédit encore
+  partiel : pas de consignes, retours ni annulations de crédit ; voir `TESTS.md`.
+
+## Retours partiels et annulations de crédit — 17 novembre 2026
+
+- Annulation totale des ventes à crédit, remboursements liés aux encaissements,
+  créance résiduelle annulée et stock restauré ; aucune trace initiale supprimée.
+- Migration 15 et retours partiels en unités de base avec réduction explicite de
+  créance et remboursements par encaissement ; contrôle des quantités, soldes,
+  idempotence et atomicité. L'annulation totale après retour est interdite.
+- Parcours UI et tests. Consignes intégrées et annulation d'un retour restent à
+  développer ; pas de migration sur base commerciale réelle.
+
+## Contrepassation des retours — 17 novembre 2026
+
+- Migration 16, annulation idempotente d'un retour avec confirmation explicite,
+  rétablissement de la créance et reprises de remboursement tracées ; refus en
+  présence de mouvements ultérieurs de stock pour les produits concernés.
+- Annulation totale après retour partiel via retour des quantités restantes et
+  extinction explicite des contreparties, sans double restitution de stock.
+- Tests métier, migration sur copie et navigateur. Les consignes restent à intégrer.
+
+## Préparation des consignes — 17 novembre 2026
+
+- Migration 17, composition explicite des emballages par conditionnement,
+  quantités entières et valeurs obligatoires ; aucune configuration déduite.
+- Refus des ventes à consigne inconnue ou effectivement consignée. Ces dernières
+  restent bloquées tant que les écritures physiques et financières ne sont pas
+  intégrées ; ce n'est pas une fonctionnalité de vente consignée terminée.
+- Tests et navigateur sur bases temporaires, aucune migration commerciale réelle.
+
+## Version 18 — consignes clients
+
+Les ventes consignées du nouveau circuit exigent un client actif et un aperçu de consigne confirmé ; valeur et composants sont figés. Le retour de vides associe réception physique, stock distinct, réduction explicite de créance et/ou remboursements liés aux encaissements, dans une transaction. Un stock initial de vides doit être déclaré. Les règlements ultérieurs du crédit sont aussi pris en compte. Annulation de vente consignée, retour de marchandise consignée et annulation de retour de vides restent bloqués ou indisponibles ; les historiques anciens ne sont pas rapprochés automatiquement. Les descriptions précédentes de limitations des versions antérieures ne décrivent pas ce nouveau circuit.
+
+### Retours séparés de marchandises consignées
+
+Le nouveau circuit accepte désormais un retour de marchandise même si la vente comprend des consignes. Les vides restent à retourner séparément ; les contreparties des deux types de retour sont cumulées pour éviter les doubles remboursements. L'annulation totale d'une vente consignée et la contrepassation d'un retour de vides restent bloquées. Le rapprochement historique manuel confirmé reste à développer.
+
+### Tableau de bord local dynamique
+
+Remplacement de l'écran d'attente par des indicateurs lus dans SQLite : produits et clients actifs, seuils de stock définis, nombre de ventes non annulées et créances restantes du nouveau circuit, caisse ouverte et espèces théoriques. Actualisation manuelle ou en revenant sur la page. Les historiques commerciaux non rapprochés sont exclus des indicateurs du nouveau circuit ; les espèces affichées ne sont pas un comptage physique. Aucune donnée de démonstration n'est créée et aucune migration n'est nécessaire.
+
+## Version 19 — moyens de paiement configurables
+
+Depuis les paramètres, création, changement de libellé et désactivation des moyens non espèces. L'ancien libellé et identifiant sont conservés pour les écritures précédentes ; les saisies nouvelles utilisent la nouvelle version. La caisse espèces reste un moyen technique immuable, nécessaire au calcul du solde. Les remboursements des anciennes opérations restent possibles après désactivation. Les autres listes métier ne sont pas toutes configurables ; les annulations de consignes et le rapprochement historique manuel restent à développer.
+
+## Version 20 — annulations de consignes
+
+Un retour de vides peut être annulé après confirmation de leur restitution au client et de la récupération des remboursements : sortie de stock, rétablissement de créance et reprises de remboursement liées sont atomiques et tracés. Un mouvement ultérieur sur le stock de l'emballage bloque l'opération. Une vente consignée peut être annulée totalement après confirmation de récupération de tous les produits et vides, avec réintégrations et remboursements liés ; les stocks initiaux de vides sont requis. Un retour actif de marchandise ou de vides bloque l'annulation totale : contrepasser d'abord ces retours lorsque possible. Les descriptions de blocage générales des sections précédentes sont historiques. Le rapprochement des anciens soldes reste à développer.

@@ -8,6 +8,9 @@ from services.packaging_service import PackagingService, PACKAGING_TYPES
 from services.product_csv_service import ProductCSVService
 from services.supplier_service import SupplierService
 from services.product_image_service import ProductImageService
+from services.deposit_configuration_service import DepositConfigurationService
+from models.deposit_configuration import DepositPackagingProfile, DepositPackagingComponent
+from models.returnable_packaging import ReturnablePackagingType
 
 
 def create_products_page(db, refresh_page):
@@ -15,6 +18,7 @@ def create_products_page(db, refresh_page):
     packagings = PackagingService(db)
     csv_service = ProductCSVService(db)
     image_service = ProductImageService(db)
+    deposit_service = DepositConfigurationService(db)
     selected = {'id': None}
     csv_data = {'text': None}
 
@@ -143,6 +147,29 @@ def create_products_page(db, refresh_page):
             ui.button('Fermer', on_click=dialog.close)
         dialog.open()
 
+    def deposit_dialog(item):
+        profile = db.get(DepositPackagingProfile, item.id)
+        existing = {c.returnable_id: c.pieces_per_pack for c in db.query(DepositPackagingComponent).filter_by(packaging_id=item.id)}
+        physical = db.query(ReturnablePackagingType).order_by(ReturnablePackagingType.producer, ReturnablePackagingType.name).all()
+        with ui.dialog() as dialog, ui.card().classes('w-full max-w-2xl'):
+            ui.label(f'Consigne — {item.product.name} / {item.name}').classes('text-lg font-semibold')
+            ui.label('Indiquez explicitement sans consigne ou la composition physique. Les ventes consignées exigent un client ; les annulations et retours de marchandise consignée restent bloqués.')
+            mode = ui.select({'none': 'Sans consigne', 'deposit': 'Avec consigne'}, label='Configuration de consigne', value=profile.mode if profile else None)
+            widgets = {}
+            for physical_item in physical:
+                value = 'non renseignée' if physical_item.deposit_value is None else f'{physical_item.deposit_value} FCFA'
+                ui.label(f'{physical_item.code} — {physical_item.name} — {physical_item.producer} — valeur {value} — {"actif" if physical_item.is_active else "archivé"}')
+                widgets[physical_item.id] = ui.input(f'Pièces {physical_item.code} par conditionnement', value=str(existing[physical_item.id]) if physical_item.id in existing else '')
+            def save():
+                def action():
+                    components = [{'returnable_id': ident, 'pieces_per_pack': widget.value} for ident, widget in widgets.items() if widget.value not in (None, '')]
+                    deposit_service.configure(item.id, mode.value, components)
+                    dialog.close(); refresh_page(); ui.notify('Configuration de consigne enregistrée.', type='positive')
+                run(action)
+            ui.button('Enregistrer configuration consigne', on_click=save)
+            ui.button('Fermer configuration consigne', on_click=dialog.close)
+        dialog.open()
+
     def manage_packaging():
         def action():
             product = selected_product()
@@ -155,6 +182,10 @@ def create_products_page(db, refresh_page):
                     with ui.row().classes('items-center'):
                         ui.label(f'{item.name} : {item.coefficient} {item.base_unit} — {"actif" if item.is_active else "archivé"}')
                         ui.button('Modifier', on_click=lambda p=item: packaging_dialog(product, p))
+                        profile = db.get(DepositPackagingProfile, item.id)
+                        status = 'non définie' if profile is None else 'sans consigne' if profile.mode == 'none' else 'avec consigne'
+                        ui.label(f'Consigne : {status}')
+                        ui.button('Configurer consigne', on_click=lambda p=item: deposit_dialog(p))
                 ui.button('Fermer', on_click=dialog.close)
             dialog.open()
         run(action)
@@ -226,7 +257,7 @@ def create_products_page(db, refresh_page):
     def csv_dialog():
         with ui.dialog() as dialog, ui.card().classes('w-full max-w-3xl'):
             ui.label('Import CSV — prévisualisation').classes('text-lg font-semibold')
-            ui.label('Utilisez les colonnes du fichier exporté. Les catégories doivent déjà exister.')
+            ui.label('Utilisez les colonnes du fichier exporté. Les catégories doivent déjà exister. Ce CSV ne contient ni conditionnements, ni images, ni historique : ce n’est pas une sauvegarde.')
             result = ui.label('Aucun fichier chargé.')
             preview_table = ui.table(columns=[{'name': 'line', 'label': 'Ligne', 'field': 'line'},
                                                {'name': 'reference', 'label': 'Référence', 'field': 'reference'},
@@ -263,7 +294,7 @@ def create_products_page(db, refresh_page):
 
     with ui.column().classes('w-full gap-4 p-6'):
         ui.label('Produits et conditionnements').classes('text-2xl font-bold')
-        ui.label('Les ventes et approvisionnements seront raccordés dans les phases suivantes.')
+        ui.label('Les parcours de vente et d’approvisionnement restent partiels ; ne pas utiliser en production.')
         with ui.row().classes('gap-2'):
             ui.button('Nouvelle catégorie', on_click=category_dialog)
             ui.button('Nouveau produit', on_click=lambda: product_dialog())

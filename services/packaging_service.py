@@ -4,6 +4,7 @@ from sqlalchemy import func
 from models.product import Product
 from models.packaging import ProductPackaging
 from money import fcfa
+from services.sqlite_transaction import locked_write
 
 PACKAGING_TYPES = ('casier', 'carton', 'bouteille', 'pack', 'canette')
 PRICE_FIELDS = ('purchase_price', 'wholesale_price', 'retail_price', 'semi_wholesale_price')
@@ -31,6 +32,7 @@ class PackagingService:
             query = query.filter_by(is_active=True)
         return query.order_by(ProductPackaging.name).all()
 
+    @locked_write
     def save(self, product_id, data, packaging_id=None):
         product = self.db.get(Product, product_id)
         if not product or not product.is_active:

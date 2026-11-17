@@ -112,6 +112,11 @@ def test_deux_sessions_nepeuvent_pas_depaisser_stock_perime(tmp_path):
     engine = create_engine(f'sqlite:///{tmp_path / "caisse.db"}')
     Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine, autoflush=False)
+    from models.payment_method import PaymentMethod
+    from services.cash_methods import METHODS
+    with factory() as seed:
+        seed.add_all(PaymentMethod(code=k, label=v, active=True) for k, v in METHODS.items())
+        seed.commit()
     a, b = factory(), factory()
     try:
         session = ManagedCashService(a).open(1000, 'a')

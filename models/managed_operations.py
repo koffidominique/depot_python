@@ -57,3 +57,32 @@ class ManagedCashTransaction(Base):
         CheckConstraint('amount > 0', name='check_cash_transaction_amount'),
         CheckConstraint("(kind = 'sale' AND sale_id IS NOT NULL) OR (kind <> 'sale' AND sale_id IS NULL)", name='check_cash_transaction_sale'),
     )
+
+
+class ManagedSalePayment(Base):
+    """Lien explicite d'un paiement d'une vente fractionnée à son mouvement de caisse."""
+    __tablename__ = 'managed_sale_payments'
+    id = Column(Integer, primary_key=True)
+    sale_id = Column(Integer, ForeignKey('managed_sales.id'), nullable=False, index=True)
+    transaction_id = Column(Integer, ForeignKey('managed_cash_transactions.id'), nullable=False, unique=True)
+    __table_args__ = (CheckConstraint('sale_id > 0 AND transaction_id > 0', name='check_managed_sale_payment_links'),)
+
+
+class ManagedSaleCancellation(Base):
+    """Annulation totale traçable, sans supprimer la vente d'origine."""
+    __tablename__ = 'managed_sale_cancellations'
+    id = Column(Integer, primary_key=True)
+    sale_id = Column(Integer, ForeignKey('managed_sales.id'), nullable=False, unique=True)
+    session_id = Column(Integer, ForeignKey('managed_cash_sessions.id'), nullable=False)
+    request_key = Column(String, nullable=False, unique=True)
+    reason = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    __table_args__ = (CheckConstraint('length(reason) > 0', name='check_sale_cancellation_reason'),)
+
+
+class ManagedSaleRefund(Base):
+    __tablename__ = 'managed_sale_refunds'
+    id = Column(Integer, primary_key=True)
+    cancellation_id = Column(Integer, ForeignKey('managed_sale_cancellations.id'), nullable=False, index=True)
+    original_transaction_id = Column(Integer, ForeignKey('managed_cash_transactions.id'), nullable=False, unique=True)
+    refund_transaction_id = Column(Integer, ForeignKey('managed_cash_transactions.id'), nullable=False, unique=True)
