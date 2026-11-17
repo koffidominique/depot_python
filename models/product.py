@@ -1,3 +1,5 @@
+from money import CFAAmount
+from fractions import Fraction
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Text, Numeric, CheckConstraint, Index
 from sqlalchemy.orm import relationship
 from database import Base
@@ -29,14 +31,17 @@ class Product(Base):
     supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True)
     packaging = Column(String, default="unit")
     unit = Column(String, default="unit")
-    purchase_price = Column(Numeric(precision=10, scale=2), default=0.0)
-    wholesale_price = Column(Numeric(precision=10, scale=2), default=0.0)
-    semi_wholesale_price = Column(Numeric(precision=10, scale=2), default=0.0)
-    retail_price = Column(Numeric(precision=10, scale=2), default=0.0)
+    purchase_price = Column(CFAAmount(), nullable=True)
+    wholesale_price = Column(CFAAmount(), nullable=True)
+    semi_wholesale_price = Column(CFAAmount(), nullable=True)
+    retail_price = Column(CFAAmount(), nullable=True)
+    # Coût moyen interne exact ; absence de valeur tant qu'aucun coût fiable n'existe.
+    average_cost_numerator = Column(String, nullable=True)
+    average_cost_denominator = Column(String, nullable=True)
     stock_quantity = Column(Numeric(precision=10, scale=3), default=0.0)
     min_stock = Column(Numeric(precision=10, scale=3), default=0.0)
     max_stock = Column(Numeric(precision=10, scale=3), default=0.0)
-    consignment_value = Column(Numeric(precision=10, scale=2), default=0.0)
+    consignment_value = Column(CFAAmount(), default=0.0)
     image_path = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
     
@@ -45,8 +50,20 @@ class Product(Base):
     sale_lines = relationship("SaleLine", back_populates="product")
     purchase_order_lines = relationship("PurchaseOrderLine", back_populates="product")
     consignation_lines = relationship("ConsignationLine", back_populates="product")
+    packagings = relationship('ProductPackaging', back_populates='product')
     stock_movements = relationship("StockMovement", back_populates="product")
     
+    @property
+    def average_cost(self):
+        if self.average_cost_numerator is None and self.average_cost_denominator is None:
+            return None
+        if self.average_cost_numerator is None or self.average_cost_denominator is None:
+            raise ValueError('Coût moyen incomplet.')
+        numerator, denominator = int(self.average_cost_numerator), int(self.average_cost_denominator)
+        if numerator < 0 or denominator <= 0:
+            raise ValueError('Coût moyen invalide.')
+        return Fraction(numerator, denominator)
+
     __table_args__ = (
         CheckConstraint('LENGTH(reference) > 0', name='check_product_reference_not_empty'),
         CheckConstraint('LENGTH(name) > 0', name='check_product_name_not_empty'),

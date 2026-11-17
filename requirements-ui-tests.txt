@@ -1,0 +1,2 @@
+# Dépendance facultative pour le test navigateur ; un Chromium compatible est requis.
+playwright==1.50.0

@@ -13,6 +13,7 @@ def test_create_sale(db_session):
     
     category = product_service.create_category(name="Test Category", description="Test")
     product = product_service.create_product({
+        "unit": "bouteille",
         "name": "Test Product",
         "purchase_price": Decimal('10.00'),
         "retail_price": Decimal('20.00'),
@@ -35,15 +36,14 @@ def test_create_sale(db_session):
     ]
     
     sale = sales_service.create_sale(
-        client_id=client.id,
-        sale_lines=sale_lines,
-        payment_method="cash"
+        sale_data={"client_id": client.id},
+        sale_lines_data=sale_lines
     )
     
     assert sale is not None
     assert sale.reference is not None
     assert sale.total_amount == Decimal('100.00')
-    assert sale.remaining_amount == Decimal('0.00')
+    assert sale.remaining_amount == 100
 
 
 def test_sale_validation(db_session):
@@ -51,7 +51,6 @@ def test_sale_validation(db_session):
     
     with pytest.raises(Exception):
         sales_service.create_sale(
-            client_id=None,
-            sale_lines=[],
-            payment_method="cash"
+            sale_data={},
+            sale_lines_data=[]
         )

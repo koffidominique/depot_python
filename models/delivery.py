@@ -1,3 +1,4 @@
+from money import CFAAmount
 from sqlalchemy import Column, Integer, String, ForeignKey, Text, Numeric, DateTime, Boolean, CheckConstraint, Index
 from sqlalchemy.orm import relationship
 from database import Base
@@ -14,7 +15,7 @@ class Delivery(Base):
     scheduled_date = Column(DateTime, nullable=True)
     delivery_address = Column(Text, nullable=True)
     delivery_person = Column(String, nullable=True)
-    transport_cost = Column(Numeric(precision=10, scale=2), default=0.0)
+    transport_cost = Column(CFAAmount(), default=0.0)
     status = Column(String, default="pending")
     notes = Column(Text, nullable=True)
     is_cancelled = Column(Boolean, default=False)

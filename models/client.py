@@ -1,3 +1,4 @@
+from money import CFAAmount
 from sqlalchemy import Column, Integer, String, Boolean, Text, Numeric, DateTime, CheckConstraint, Index
 from sqlalchemy.orm import relationship
 from database import Base
@@ -15,8 +16,8 @@ class Client(Base):
     city = Column(String, nullable=True)
     email = Column(String, nullable=True)
     contact_person = Column(String, nullable=True)
-    credit_limit = Column(Numeric(precision=10, scale=2), default=0.0, nullable=False)
-    financial_balance = Column(Numeric(precision=10, scale=2), default=0.0, nullable=False)
+    credit_limit = Column(CFAAmount(), default=0.0, nullable=False)
+    financial_balance = Column(CFAAmount(), default=0.0, nullable=False)
     consignment_balance = Column(Numeric(precision=10, scale=3), default=0.0, nullable=False)
     payment_terms = Column(Integer, default=0, nullable=False)
     is_active = Column(Boolean, default=True)

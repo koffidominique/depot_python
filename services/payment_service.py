@@ -88,6 +88,8 @@ class PaymentService:
         if not payment:
             return False
         
+        if payment.supplier_debt_id is not None or payment.cash_link_status == 'linked_cash':
+            raise ValueError('Un règlement fournisseur ne peut pas être supprimé : une procédure de contrepassation est nécessaire.')
         if payment.sale_id:
             sale = payment.sale
             if sale and sale.client_id:

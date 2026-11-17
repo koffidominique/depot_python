@@ -9,6 +9,7 @@ def test_update_stock_product_exists(db_session):
     
     category = product_service.create_category(name="Test Category", description="Test")
     product = product_service.create_product({
+        "unit": "bouteille",
         "name": "Test Product",
         "purchase_price": Decimal('10.00'),
         "retail_price": Decimal('20.00'),
@@ -47,6 +48,7 @@ def test_negative_stock_forbidden_by_default(db_session):
     
     category = product_service.create_category(name="Test Category 2", description="Test")
     product = product_service.create_product({
+        "unit": "bouteille",
         "name": "Test Product 2",
         "purchase_price": Decimal('10.00'),
         "retail_price": Decimal('20.00'),
@@ -71,6 +73,7 @@ def test_negative_stock_allowed_with_parameter(db_session):
     
     category = product_service.create_category(name="Test Category 3", description="Test")
     product = product_service.create_product({
+        "unit": "bouteille",
         "name": "Test Product 3",
         "purchase_price": Decimal('10.00'),
         "retail_price": Decimal('20.00'),
@@ -96,6 +99,7 @@ def test_stock_movement_logs_before_after(db_session):
     
     category = product_service.create_category(name="Test Category 4", description="Test")
     product = product_service.create_product({
+        "unit": "bouteille",
         "name": "Test Product 4",
         "purchase_price": Decimal('10.00'),
         "retail_price": Decimal('20.00'),
@@ -108,7 +112,7 @@ def test_stock_movement_logs_before_after(db_session):
         quantity_change=Decimal('3.0'),
         movement_type="entry",
         unit="unit",
-        user_id=1,
+        user_id=None,
         reason="Test movement log",
         reference_document="DOC-001",
         commit=True
@@ -119,7 +123,7 @@ def test_stock_movement_logs_before_after(db_session):
     assert movements[0].stock_before == Decimal('10.0')
     assert movements[0].stock_after == Decimal('13.0')
     assert movements[0].unit == "unit"
-    assert movements[0].user_id == 1
+    assert movements[0].user_id is None
     assert movements[0].reason == "Test movement log"
     assert movements[0].reference_document == "DOC-001"
 
@@ -129,6 +133,7 @@ def test_no_commit_for_batch_operations(db_session):
     
     category = product_service.create_category(name="Test Category 5", description="Test")
     product = product_service.create_product({
+        "unit": "bouteille",
         "name": "Test Product 5",
         "purchase_price": Decimal('10.00'),
         "retail_price": Decimal('20.00'),

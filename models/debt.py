@@ -1,3 +1,4 @@
+from money import CFAAmount
 from sqlalchemy import Column, Integer, String, ForeignKey, Text, Numeric, DateTime, Boolean, CheckConstraint, Index
 from sqlalchemy.orm import relationship
 from database import Base
@@ -11,9 +12,9 @@ class ClientDebt(Base):
     client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
     sale_id = Column(Integer, ForeignKey("sales.id"), nullable=True)
     date = Column(DateTime, default=datetime.utcnow, nullable=False)
-    initial_amount = Column(Numeric(precision=10, scale=2), nullable=False)
-    paid_amount = Column(Numeric(precision=10, scale=2), default=0.0)
-    remaining_amount = Column(Numeric(precision=10, scale=2), nullable=False)
+    initial_amount = Column(CFAAmount(), nullable=False)
+    paid_amount = Column(CFAAmount(), default=0.0)
+    remaining_amount = Column(CFAAmount(), nullable=False)
     due_date = Column(DateTime, nullable=True)
     status = Column(String, default="pending")
     is_cancelled = Column(Boolean, default=False)
@@ -38,10 +39,11 @@ class SupplierDebt(Base):
     reference = Column(String, unique=True, index=True, nullable=False)
     supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=False)
     purchase_order_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=True)
+    receipt_id = Column(Integer, ForeignKey("purchase_receipts.id"), nullable=True, unique=True)
     date = Column(DateTime, default=datetime.utcnow, nullable=False)
-    initial_amount = Column(Numeric(precision=10, scale=2), nullable=False)
-    paid_amount = Column(Numeric(precision=10, scale=2), default=0.0)
-    remaining_amount = Column(Numeric(precision=10, scale=2), nullable=False)
+    initial_amount = Column(CFAAmount(), nullable=False)
+    paid_amount = Column(CFAAmount(), default=0.0)
+    remaining_amount = Column(CFAAmount(), nullable=False)
     due_date = Column(DateTime, nullable=True)
     status = Column(String, default="pending")
     is_cancelled = Column(Boolean, default=False)

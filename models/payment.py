@@ -1,3 +1,4 @@
+from money import CFAAmount
 from sqlalchemy import Column, Integer, String, Float, ForeignKey, Text, Numeric, DateTime
 from sqlalchemy.orm import relationship
 from database import Base
@@ -12,8 +13,9 @@ class Payment(Base):
     sale_id = Column(Integer, ForeignKey("sales.id"), nullable=True)
     client_debt_id = Column(Integer, ForeignKey("client_debts.id"), nullable=True)
     supplier_debt_id = Column(Integer, ForeignKey("supplier_debts.id"), nullable=True)
-    amount = Column(Numeric(precision=10, scale=2))
+    amount = Column(CFAAmount())
     payment_method = Column(String)
+    cash_link_status = Column(String, nullable=True)  # 'outside_cash' : pas de mouvement de caisse associé
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     notes = Column(Text, nullable=True)
     

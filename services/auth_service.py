@@ -32,22 +32,11 @@ class AuthService:
         return None
     
     def authenticate_by_pin(self, pin: str) -> Optional[User]:
-        if len(pin) != 4 or not pin.isdigit():
-            return None
-        user = self.db.query(User).filter(User.pin_code == pin, User.is_active == True).first()
-        return user
-    
+        raise RuntimeError("L'authentification multi-utilisateur par PIN est désactivée.")
+
     def update_pin_code(self, user_id: int, new_pin: str) -> bool:
-        if len(new_pin) != 4 or not new_pin.isdigit():
-            return False
-        user = self.get_user_by_id(user_id)
-        if not user:
-            return False
-        user.pin_code = new_pin
-        user.updated_at = datetime.now()
-        self.db.commit()
-        return True
-    
+        raise RuntimeError("Utilisez la configuration du PIN propriétaire.")
+
     def create_user(self, username: str, password: str, full_name: str, role_id: int, email: str = None) -> User:
         password_hash = self.hash_password(password)
         user = User(

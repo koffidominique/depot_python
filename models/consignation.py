@@ -1,3 +1,4 @@
+from money import CFAAmount
 from sqlalchemy import Column, Integer, String, ForeignKey, Text, Numeric, DateTime, Boolean, CheckConstraint, Index
 from sqlalchemy.orm import relationship
 from database import Base
@@ -11,7 +12,7 @@ class Consignation(Base):
     client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
     date = Column(DateTime, default=datetime.utcnow, nullable=False)
     total_quantity = Column(Numeric(precision=10, scale=3), nullable=False)
-    total_value = Column(Numeric(precision=10, scale=2), nullable=False)
+    total_value = Column(CFAAmount(), nullable=False)
     delivered_quantity = Column(Numeric(precision=10, scale=3), default=0.0)
     remaining_quantity = Column(Numeric(precision=10, scale=3), nullable=False)
     status = Column(String, default="pending")
@@ -39,8 +40,8 @@ class ConsignationLine(Base):
     consignation_id = Column(Integer, ForeignKey("consignations.id"), nullable=False)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
     quantity = Column(Numeric(precision=10, scale=3), nullable=False)
-    unit_price = Column(Numeric(precision=10, scale=2), nullable=False)
-    line_total = Column(Numeric(precision=10, scale=2), nullable=False)
+    unit_price = Column(CFAAmount(), nullable=False)
+    line_total = Column(CFAAmount(), nullable=False)
     
     consignation = relationship("Consignation", back_populates="consignation_lines")
     product = relationship("Product", back_populates="consignation_lines")
